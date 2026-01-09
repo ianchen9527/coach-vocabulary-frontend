@@ -20,6 +20,16 @@ export interface StatsResponse {
   can_practice: boolean;
   can_review: boolean;
   next_available_time: string | null;
+  current_level: {
+    id: number;
+    order: number;
+    label: string;
+  } | null;
+  current_category: {
+    id: number;
+    order: number;
+    label: string;
+  } | null;
 }
 
 export interface WordPoolItem {
@@ -173,6 +183,33 @@ export type ExerciseType =
 export type SessionMode = "learn" | "practice" | "review";
 
 export type ExerciseCategory = "reading" | "listening" | "speaking";
+
+// === Level Analysis ===
+export interface LevelAnalysisExerciseSchema extends ExerciseWithWordSchema {
+  level_order: number;
+}
+
+export interface LevelAnalysisSessionResponse {
+  exercises: LevelAnalysisExerciseSchema[];
+}
+
+export interface LevelAnalysisSubmitRequest {
+  level_order: number;
+}
+
+export interface LevelAnalysisSubmitResponse {
+  success: boolean;
+  current_level: {
+    id: number;
+    order: number;
+    label: string;
+  } | null;
+  current_category: {
+    id: number;
+    order: number;
+    label: string;
+  } | null;
+}
 
 // === Helpers ===
 export function getExerciseCategory(type: ExerciseType): ExerciseCategory {

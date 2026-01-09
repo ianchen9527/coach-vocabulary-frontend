@@ -68,17 +68,20 @@ export default function HomeScreen() {
     setIsRefreshing(false);
   };
 
-  // 決定主要按鈕的動作（優先順序：複習 > 練習 > 學習）
-  const getNextAction = (): ActionType => {
+  // 決定主要按鈕的動作（優先順序：程度分析 > 複習 > 練習 > 學習）
+  const getNextAction = (): ActionType | "analysis" => {
     if (!stats) return null;
+    if (stats.current_level === null) return "analysis";
     if (stats.can_review) return "review";
     if (stats.can_practice) return "practice";
     if (stats.can_learn) return "learn";
     return null;
   };
 
-  const getActionLabel = (action: ActionType): string => {
+  const getActionLabel = (action: ActionType | "analysis"): string => {
     switch (action) {
+      case "analysis":
+        return "分析程度";
       case "review":
         return "開始複習";
       case "practice":
@@ -90,8 +93,10 @@ export default function HomeScreen() {
     }
   };
 
-  const getActionIcon = (action: ActionType) => {
+  const getActionIcon = (action: ActionType | "analysis") => {
     switch (action) {
+      case "analysis":
+        return <Zap size={24} color={colors.primaryForeground} />;
       case "review":
         return <RotateCcw size={24} color={colors.primaryForeground} />;
       case "practice":
@@ -106,6 +111,9 @@ export default function HomeScreen() {
   const handleStartAction = () => {
     const action = getNextAction();
     switch (action) {
+      case "analysis":
+        router.push("/(main)/analysis");
+        break;
       case "review":
         router.push("/(main)/review");
         break;
@@ -269,6 +277,7 @@ export default function HomeScreen() {
           {/* 狀態提示 */}
           {nextAction && (
             <Text style={styles.actionHint}>
+              {nextAction === "analysis" && "請先完成程度分析以開啟學習任務"}
               {nextAction === "review" && `有 ${stats?.available_review} 個單字需要複習`}
               {nextAction === "practice" && `有 ${stats?.available_practice} 個單字可以練習`}
               {nextAction === "learn" && "開始學習新單字吧！"}
