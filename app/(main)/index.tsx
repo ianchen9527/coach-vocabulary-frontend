@@ -231,14 +231,6 @@ export default function HomeScreen() {
                 {stats?.available_review || 0}
               </Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>
-                24h 後可練習
-              </Text>
-              <Text style={styles.statValueMuted}>
-                {stats?.upcoming_24h || 0}
-              </Text>
-            </View>
           </View>
 
           {/* Next Available Time */}
@@ -374,7 +366,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: "45%",
+    minWidth: "30%",
     backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
