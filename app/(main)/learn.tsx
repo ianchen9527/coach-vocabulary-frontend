@@ -23,12 +23,12 @@ import {
   ProgressBar,
   ExerciseOptions,
 } from "../../components/exercise";
+import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 
-type Phase = "loading" | "display" | "exercise" | "result" | "complete";
+type PagePhase = "loading" | "display" | "exercising" | "complete";
 
 const DISPLAY_DURATION = 3000; // 展示階段 3 秒
-const EXERCISE_DURATION = 3000; // 答題時間 3 秒
-const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms 以實現平滑倒數
+const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms
 
 export default function LearnScreen() {
   const router = useRouter();
@@ -41,21 +41,35 @@ export default function LearnScreen() {
 
   const [session, setSession] = useState<LearnSessionResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const [remainingMs, setRemainingMs] = useState(DISPLAY_DURATION);
+  const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
+  const [displayRemainingMs, setDisplayRemainingMs] = useState(DISPLAY_DURATION);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentWord = session?.words[currentIndex];
   const currentExercise = session?.exercises[currentIndex];
   const totalWords = session?.words.length || 0;
 
-  // 清理計時器
-  const clearTimers = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // 前往下一個單字
+  const goToNext = () => {
+    if (currentIndex < totalWords - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setPagePhase("display");
+      exerciseFlow.reset();
+    } else {
+      setPagePhase("complete");
+      completeSession();
+    }
+  };
+
+  // 使用共用的答題流程 Hook
+  const exerciseFlow = useExerciseFlow({}, goToNext);
+
+  // 清理展示階段計時器
+  const clearDisplayTimer = () => {
+    if (displayTimerRef.current) {
+      clearInterval(displayTimerRef.current);
+      displayTimerRef.current = null;
     }
   };
 
@@ -71,7 +85,7 @@ export default function LearnScreen() {
           return;
         }
         setSession(data);
-        setPhase("display");
+        setPagePhase("display");
       } catch (error) {
         Alert.alert("載入失敗", handleApiError(error), [
           { text: "返回", onPress: () => router.back() },
@@ -80,96 +94,36 @@ export default function LearnScreen() {
     };
     loadSession();
 
-    return () => clearTimers();
+    return () => clearDisplayTimer();
   }, [router]);
 
-  // 展示階段：自動播放音檔 + 3秒後自動進入練習
+  // 展示階段：自動播放音檔 + 3秒後自動進入答題
   useEffect(() => {
-    if (phase === "display" && currentWord) {
+    if (pagePhase === "display" && currentWord) {
       // 播放音檔
       speak(currentWord.word, getAssetUrl(currentWord.audio_url));
 
       // 重置倒數
       const start = Date.now();
-      setRemainingMs(DISPLAY_DURATION);
+      setDisplayRemainingMs(DISPLAY_DURATION);
 
       // 設定倒數計時器
-      timerRef.current = setInterval(() => {
+      displayTimerRef.current = setInterval(() => {
         const elapsed = Date.now() - start;
         const remaining = Math.max(0, DISPLAY_DURATION - elapsed);
-        setRemainingMs(remaining);
+        setDisplayRemainingMs(remaining);
 
         if (remaining <= 0) {
-          clearTimers();
-          setPhase("exercise");
-          setSelectedOptionIndex(null);
+          clearDisplayTimer();
+          // 進入答題流程
+          setPagePhase("exercising");
+          exerciseFlow.start();
         }
       }, COUNTDOWN_INTERVAL);
     }
 
-    return () => clearTimers();
-  }, [phase, currentIndex, currentWord, speak]);
-
-  // 練習階段：3秒倒數，超時自動答錯
-  useEffect(() => {
-    if (phase === "exercise" && currentExercise) {
-      // 重置倒數
-      const start = Date.now();
-      setRemainingMs(EXERCISE_DURATION);
-
-      // 設定倒數計時器
-      timerRef.current = setInterval(() => {
-        const elapsed = Date.now() - start;
-        const remaining = Math.max(0, EXERCISE_DURATION - elapsed);
-        setRemainingMs(remaining);
-
-        if (remaining <= 0) {
-          clearTimers();
-          handleTimeout();
-        }
-      }, COUNTDOWN_INTERVAL);
-    }
-
-    return () => clearTimers();
-  }, [phase, currentIndex]);
-
-  // 超時處理
-  const handleTimeout = () => {
-    if (selectedOptionIndex !== null) return; // 已經選過了
-
-    setSelectedOptionIndex(-1); // -1 表示超時未作答
-    setPhase("result");
-
-    // 1.5 秒後進入下一個單字
-    setTimeout(() => {
-      goToNext();
-    }, 1500);
-  };
-
-  // 處理選項點擊
-  const handleOptionSelect = (index: number) => {
-    if (selectedOptionIndex !== null) return; // 已選擇過
-
-    clearTimers();
-    setSelectedOptionIndex(index);
-    setPhase("result");
-
-    // 1.5 秒後進入下一個單字
-    setTimeout(() => {
-      goToNext();
-    }, 1500);
-  };
-
-  // 前往下一個單字
-  const goToNext = () => {
-    if (currentIndex < totalWords - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setPhase("display");
-    } else {
-      setPhase("complete");
-      completeSession();
-    }
-  };
+    return () => clearDisplayTimer();
+  }, [pagePhase, currentIndex, currentWord, speak]);
 
   // 完成學習
   const completeSession = async () => {
@@ -185,14 +139,15 @@ export default function LearnScreen() {
 
   // 返回首頁
   const handleBack = () => {
-    clearTimers();
+    clearDisplayTimer();
+    exerciseFlow.clearTimer();
     Alert.alert("確定離開？", "學習進度將不會保存", [
       { text: "取消", style: "cancel" },
       { text: "離開", style: "destructive", onPress: () => router.back() },
     ]);
   };
 
-  if (phase === "loading") {
+  if (pagePhase === "loading") {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -201,7 +156,7 @@ export default function LearnScreen() {
     );
   }
 
-  if (phase === "complete") {
+  if (pagePhase === "complete") {
     return (
       <SafeAreaView style={styles.completeContainer}>
         <View style={styles.successIconContainer}>
@@ -244,10 +199,11 @@ export default function LearnScreen() {
 
       {/* Content */}
       <View style={[styles.content, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
-        {phase === "display" && currentWord && (
+        {/* 展示階段：顯示單字和翻譯 */}
+        {pagePhase === "display" && currentWord && (
           <View style={styles.displayContent}>
             {/* 倒數計時 */}
-            <CountdownText remainingMs={remainingMs} />
+            <CountdownText remainingMs={displayRemainingMs} />
 
             {/* 圖片 */}
             {currentWord.image_url && (
@@ -281,35 +237,56 @@ export default function LearnScreen() {
           </View>
         )}
 
-        {(phase === "exercise" || phase === "result") && currentExercise && currentWord && (
+        {/* 答題階段 */}
+        {pagePhase === "exercising" && currentExercise && currentWord && (
           <View style={styles.exerciseContent}>
-            {/* 倒數計時（只在答題時顯示） */}
-            {phase === "exercise" && (
-              <CountdownText remainingMs={remainingMs} />
+            {/* 題目階段：顯示單字，倒數計時 */}
+            {exerciseFlow.phase === "question" && (
+              <>
+                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                <Text style={styles.exerciseWordText}>
+                  {currentWord.word}
+                </Text>
+                <Text style={styles.exerciseInstructions}>
+                  準備作答...
+                </Text>
+              </>
             )}
 
-            <Text style={styles.exerciseWordText}>
-              {currentWord.word}
-            </Text>
-            <Text style={styles.exerciseInstructions}>
-              選出正確的翻譯
-            </Text>
+            {/* 選項階段：顯示選項，倒數計時 */}
+            {exerciseFlow.phase === "options" && (
+              <>
+                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                <ExerciseOptions
+                  options={currentExercise.options}
+                  selectedIndex={null}
+                  correctIndex={currentExercise.correct_index}
+                  showResult={false}
+                  onSelect={exerciseFlow.select}
+                  disabled={false}
+                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                  showImage={currentExercise.type === "reading_lv1"}
+                />
+              </>
+            )}
 
-            {/* Options */}
-            <ExerciseOptions
-              options={currentExercise.options}
-              selectedIndex={selectedOptionIndex}
-              correctIndex={currentExercise.correct_index}
-              showResult={phase === "result"}
-              onSelect={handleOptionSelect}
-              disabled={phase === "result"}
-              layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-              showImage={currentExercise.type === "reading_lv1"}
-            />
-
-            {/* 超時提示 */}
-            {phase === "result" && selectedOptionIndex === -1 && (
-              <Text style={styles.timeoutText}>時間到！</Text>
+            {/* 結果階段：顯示正確答案 */}
+            {exerciseFlow.phase === "result" && (
+              <>
+                {exerciseFlow.selectedIndex === -1 && (
+                  <Text style={styles.timeoutText}>時間到！</Text>
+                )}
+                <ExerciseOptions
+                  options={currentExercise.options}
+                  selectedIndex={exerciseFlow.selectedIndex}
+                  correctIndex={currentExercise.correct_index}
+                  showResult={true}
+                  onSelect={() => {}}
+                  disabled={true}
+                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                  showImage={currentExercise.type === "reading_lv1"}
+                />
+              </>
             )}
           </View>
         )}

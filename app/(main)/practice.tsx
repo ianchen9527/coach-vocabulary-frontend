@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -23,11 +23,12 @@ import {
   ProgressBar,
   ExerciseOptions,
 } from "../../components/exercise";
+import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 
-type Phase = "loading" | "intro" | "exercise" | "result" | "complete";
-
-const EXERCISE_DURATION = 5000; // 答題時間 5 秒
-const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms
+// 頁面階段：loading | intro | exercising | speaking | complete
+// exercising = 使用 hook 管理的答題流程（閱讀/聽力題）
+// speaking = 口說題（手動確認）
+type PagePhase = "loading" | "intro" | "exercising" | "speaking" | "complete";
 
 export default function PracticeScreen() {
   const router = useRouter();
@@ -40,98 +41,13 @@ export default function PracticeScreen() {
 
   const [session, setSession] = useState<PracticeSessionResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+  const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
   const [answers, setAnswers] = useState<AnswerSchema[]>([]);
   const [currentExerciseType, setCurrentExerciseType] = useState<string>("");
-  const [remainingMs, setRemainingMs] = useState(EXERCISE_DURATION);
-
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const exercises = session?.exercises || [];
   const currentExercise = exercises[currentIndex];
   const totalExercises = exercises.length;
-
-  // 清理計時器
-  const clearTimers = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  // 載入練習 Session
-  useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const data = await practiceService.getSession();
-        if (!data.available) {
-          Alert.alert("無法練習", data.reason || "目前沒有可練習的單字", [
-            { text: "返回", onPress: () => router.back() },
-          ]);
-          return;
-        }
-        setSession(data);
-
-        // 檢查第一個題型
-        if (data.exercises.length > 0) {
-          setCurrentExerciseType(getExerciseCategory(data.exercises[0].type));
-          setPhase("intro");
-        }
-      } catch (error) {
-        Alert.alert("載入失敗", handleApiError(error), [
-          { text: "返回", onPress: () => router.back() },
-        ]);
-      }
-    };
-    loadSession();
-
-    return () => clearTimers();
-  }, [router]);
-
-  // 播放聽力題
-  useEffect(() => {
-    if (phase === "exercise" && currentExercise?.type.startsWith("listening")) {
-      speak(currentExercise.word, getAssetUrl(currentExercise.audio_url));
-    }
-  }, [phase, currentIndex, currentExercise, speak]);
-
-  // 練習階段倒數計時（僅閱讀和聽力題）
-  useEffect(() => {
-    if (phase === "exercise" && currentExercise && !currentExercise.type.startsWith("speaking")) {
-      const start = Date.now();
-      setRemainingMs(EXERCISE_DURATION);
-
-      timerRef.current = setInterval(() => {
-        const elapsed = Date.now() - start;
-        const remaining = Math.max(0, EXERCISE_DURATION - elapsed);
-        setRemainingMs(remaining);
-
-        if (remaining <= 0) {
-          clearTimers();
-          handleTimeout();
-        }
-      }, COUNTDOWN_INTERVAL);
-    }
-
-    return () => clearTimers();
-  }, [phase, currentIndex]);
-
-  // 超時處理
-  const handleTimeout = () => {
-    if (selectedOptionIndex !== null) return;
-
-    setSelectedOptionIndex(-1);
-    setAnswers((prev) => [
-      ...prev,
-      { word_id: currentExercise!.word_id, correct: false },
-    ]);
-    setPhase("result");
-
-    setTimeout(() => {
-      goToNextExercise();
-    }, 1500);
-  };
 
   const getExerciseCategory = (type: string): string => {
     if (type.startsWith("reading")) return "reading";
@@ -159,25 +75,82 @@ export default function PracticeScreen() {
     return `複習池 ${pool}`;
   };
 
-  // 處理選項點擊
-  const handleOptionSelect = (index: number) => {
-    if (selectedOptionIndex !== null) return;
+  // 用來記錄當前答案
+  const answersRef = useRef<AnswerSchema[]>([]);
 
-    clearTimers();
-    setSelectedOptionIndex(index);
-    const correct = index === currentExercise?.correct_index;
+  // 進入下一題
+  const goToNextExercise = useCallback(() => {
+    if (currentIndex < totalExercises - 1) {
+      const nextExercise = exercises[currentIndex + 1];
+      const nextCategory = getExerciseCategory(nextExercise.type);
 
-    setAnswers((prev) => [
-      ...prev,
-      { word_id: currentExercise!.word_id, correct },
-    ]);
+      setCurrentIndex((prev) => prev + 1);
 
-    setPhase("result");
+      if (nextCategory !== currentExerciseType) {
+        setCurrentExerciseType(nextCategory);
+        setPagePhase("intro");
+      } else if (nextCategory === "speaking") {
+        setPagePhase("speaking");
+      } else {
+        setPagePhase("exercising");
+        exerciseFlow.reset();
+        // 需要在下一個 tick 啟動，讓 currentExercise 更新
+        setTimeout(() => exerciseFlow.start(), 0);
+      }
+    } else {
+      completeSession();
+    }
+  }, [currentIndex, totalExercises, exercises, currentExerciseType]);
 
-    setTimeout(() => {
-      goToNextExercise();
-    }, 1500);
-  };
+  // 使用共用的答題流程 Hook（閱讀/聽力題）
+  const exerciseFlow = useExerciseFlow({}, () => {
+    // 記錄答案
+    if (currentExercise) {
+      const correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+      const newAnswer = { word_id: currentExercise.word_id, correct };
+      setAnswers((prev) => [...prev, newAnswer]);
+      answersRef.current = [...answersRef.current, newAnswer];
+    }
+    goToNextExercise();
+  });
+
+  // 載入練習 Session
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const data = await practiceService.getSession();
+        if (!data.available) {
+          Alert.alert("無法練習", data.reason || "目前沒有可練習的單字", [
+            { text: "返回", onPress: () => router.back() },
+          ]);
+          return;
+        }
+        setSession(data);
+
+        // 檢查第一個題型
+        if (data.exercises.length > 0) {
+          setCurrentExerciseType(getExerciseCategory(data.exercises[0].type));
+          setPagePhase("intro");
+        }
+      } catch (error) {
+        Alert.alert("載入失敗", handleApiError(error), [
+          { text: "返回", onPress: () => router.back() },
+        ]);
+      }
+    };
+    loadSession();
+  }, [router]);
+
+  // 聽力題：在 question 階段播放音檔
+  useEffect(() => {
+    if (
+      pagePhase === "exercising" &&
+      exerciseFlow.phase === "question" &&
+      currentExercise?.type.startsWith("listening")
+    ) {
+      speak(currentExercise.word, getAssetUrl(currentExercise.audio_url));
+    }
+  }, [pagePhase, exerciseFlow.phase, currentExercise, speak]);
 
   // 處理口說練習（簡化版：手動確認）
   const handleSpeakingConfirm = (correct: boolean) => {
@@ -191,32 +164,22 @@ export default function PracticeScreen() {
     }, 1000);
   };
 
-  // 進入下一題
-  const goToNextExercise = () => {
-    if (currentIndex < totalExercises - 1) {
-      const nextExercise = exercises[currentIndex + 1];
-      const nextCategory = getExerciseCategory(nextExercise.type);
-
-      if (nextCategory !== currentExerciseType) {
-        setCurrentExerciseType(nextCategory);
-        setPhase("intro");
-      } else {
-        setPhase("exercise");
-      }
-
-      setCurrentIndex((prev) => prev + 1);
-      setSelectedOptionIndex(null);
+  // 開始練習（從 intro 進入）
+  const startExercise = () => {
+    if (currentExercise?.type.startsWith("speaking")) {
+      setPagePhase("speaking");
     } else {
-      completeSession();
+      setPagePhase("exercising");
+      exerciseFlow.start();
     }
   };
 
   // 完成練習
   const completeSession = async () => {
-    setPhase("complete");
+    setPagePhase("complete");
 
     try {
-      await practiceService.submit(answers);
+      await practiceService.submit(answersRef.current);
     } catch (error) {
       console.error("Submit practice error:", error);
     }
@@ -224,14 +187,14 @@ export default function PracticeScreen() {
 
   // 返回
   const handleBack = () => {
-    clearTimers();
+    exerciseFlow.clearTimer();
     Alert.alert("確定離開？", "練習進度將不會保存", [
       { text: "取消", style: "cancel" },
       { text: "離開", style: "destructive", onPress: () => router.back() },
     ]);
   };
 
-  if (phase === "loading") {
+  if (pagePhase === "loading") {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -240,7 +203,7 @@ export default function PracticeScreen() {
     );
   }
 
-  if (phase === "complete") {
+  if (pagePhase === "complete") {
     const correctCount = answers.filter((a) => a.correct).length;
     return (
       <SafeAreaView style={styles.completeContainer}>
@@ -265,7 +228,7 @@ export default function PracticeScreen() {
     );
   }
 
-  if (phase === "intro") {
+  if (pagePhase === "intro") {
     return (
       <SafeAreaView style={styles.introContainer}>
         <Text style={styles.introTitle}>
@@ -278,7 +241,7 @@ export default function PracticeScreen() {
         </Text>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => setPhase("exercise")}
+          onPress={startExercise}
         >
           <Text style={styles.primaryButtonText}>
             開始
@@ -316,46 +279,8 @@ export default function PracticeScreen() {
               </Text>
             </View>
 
-            {/* 倒數計時（僅閱讀和聽力題，且在答題階段） */}
-            {phase === "exercise" && !currentExercise.type.startsWith("speaking") && (
-              <CountdownText remainingMs={remainingMs} />
-            )}
-
-            {/* 超時提示 */}
-            {phase === "result" && selectedOptionIndex === -1 && (
-              <Text style={styles.timeoutText}>時間到！</Text>
-            )}
-
-            {/* 題目區 */}
-            {currentExercise.type.startsWith("reading") && (
-              <>
-                <Text style={styles.readingWord}>
-                  {currentExercise.word}
-                </Text>
-                <Text style={styles.readingInstruction}>
-                  選出正確的翻譯
-                </Text>
-              </>
-            )}
-
-            {currentExercise.type.startsWith("listening") && (
-              <View style={styles.listeningContainer}>
-                <TouchableOpacity
-                  onPress={() => speak(currentExercise.word, getAssetUrl(currentExercise.audio_url))}
-                  style={styles.listeningButton}
-                >
-                  <Volume2
-                    size={48}
-                    color={isSpeaking ? colors.primary : colors.mutedForeground}
-                  />
-                </TouchableOpacity>
-                <Text style={styles.listeningText}>
-                  {isSpeaking ? "播放中..." : "點擊重播"}
-                </Text>
-              </View>
-            )}
-
-            {currentExercise.type.startsWith("speaking") && (
+            {/* 口說練習 */}
+            {pagePhase === "speaking" && currentExercise.type.startsWith("speaking") && (
               <View style={styles.speakingContainer}>
                 {currentExercise.image_url && (
                   <Image
@@ -391,18 +316,75 @@ export default function PracticeScreen() {
               </View>
             )}
 
-            {/* 選項區（閱讀和聽力題） */}
-            {!currentExercise.type.startsWith("speaking") && (
-              <ExerciseOptions
-                options={currentExercise.options}
-                selectedIndex={selectedOptionIndex}
-                correctIndex={currentExercise.correct_index}
-                showResult={phase === "result"}
-                onSelect={handleOptionSelect}
-                disabled={phase === "result"}
-                layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                showImage={currentExercise.type === "reading_lv1"}
-              />
+            {/* 閱讀/聽力練習 - 使用 exerciseFlow */}
+            {pagePhase === "exercising" && (
+              <>
+                {/* 題目階段 */}
+                {exerciseFlow.phase === "question" && (
+                  <>
+                    <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                    {currentExercise.type.startsWith("reading") && (
+                      <>
+                        <Text style={styles.readingWord}>
+                          {currentExercise.word}
+                        </Text>
+                        <Text style={styles.readingInstruction}>
+                          準備作答...
+                        </Text>
+                      </>
+                    )}
+                    {currentExercise.type.startsWith("listening") && (
+                      <View style={styles.listeningContainer}>
+                        <View style={styles.listeningButton}>
+                          <Volume2
+                            size={48}
+                            color={isSpeaking ? colors.primary : colors.mutedForeground}
+                          />
+                        </View>
+                        <Text style={styles.listeningText}>
+                          {isSpeaking ? "播放中..." : "準備作答..."}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+
+                {/* 選項階段 */}
+                {exerciseFlow.phase === "options" && (
+                  <>
+                    <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                    <ExerciseOptions
+                      options={currentExercise.options}
+                      selectedIndex={null}
+                      correctIndex={currentExercise.correct_index}
+                      showResult={false}
+                      onSelect={exerciseFlow.select}
+                      disabled={false}
+                      layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                      showImage={currentExercise.type === "reading_lv1"}
+                    />
+                  </>
+                )}
+
+                {/* 結果階段 */}
+                {exerciseFlow.phase === "result" && (
+                  <>
+                    {exerciseFlow.selectedIndex === -1 && (
+                      <Text style={styles.timeoutText}>時間到！</Text>
+                    )}
+                    <ExerciseOptions
+                      options={currentExercise.options}
+                      selectedIndex={exerciseFlow.selectedIndex}
+                      correctIndex={currentExercise.correct_index}
+                      showResult={true}
+                      onSelect={() => {}}
+                      disabled={true}
+                      layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                      showImage={currentExercise.type === "reading_lv1"}
+                    />
+                  </>
+                )}
+              </>
             )}
           </View>
         )}

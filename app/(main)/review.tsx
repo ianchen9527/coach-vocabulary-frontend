@@ -23,11 +23,11 @@ import {
   ProgressBar,
   ExerciseOptions,
 } from "../../components/exercise";
+import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 
-type Phase = "loading" | "display" | "exercise" | "result" | "complete";
+type PagePhase = "loading" | "display" | "exercising" | "complete";
 
 const DISPLAY_DURATION = 3000; // 展示階段 3 秒
-const EXERCISE_DURATION = 3000; // 答題時間 3 秒
 const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms
 
 export default function ReviewScreen() {
@@ -41,13 +41,13 @@ export default function ReviewScreen() {
 
   const [session, setSession] = useState<ReviewSessionResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+  const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
   const [answers, setAnswers] = useState<AnswerSchema[]>([]);
   const [displayCompleted, setDisplayCompleted] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(EXERCISE_DURATION);
+  const [displayRemainingMs, setDisplayRemainingMs] = useState(DISPLAY_DURATION);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answersRef = useRef<AnswerSchema[]>([]);
 
   const words = session?.words || [];
   const exercises = session?.exercises || [];
@@ -55,13 +55,36 @@ export default function ReviewScreen() {
   const currentExercise = exercises[currentIndex];
   const totalWords = words.length;
 
-  // 清理計時器
-  const clearTimers = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // 清理展示階段計時器
+  const clearDisplayTimer = () => {
+    if (displayTimerRef.current) {
+      clearInterval(displayTimerRef.current);
+      displayTimerRef.current = null;
     }
   };
+
+  // 進入下一題
+  const goToNext = () => {
+    if (currentIndex < totalWords - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setPagePhase("display");
+      exerciseFlow.reset();
+    } else {
+      completeSession();
+    }
+  };
+
+  // 使用共用的答題流程 Hook
+  const exerciseFlow = useExerciseFlow({}, () => {
+    // 記錄答案
+    if (currentWord && currentExercise) {
+      const correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+      const newAnswer = { word_id: currentWord.id, correct };
+      setAnswers((prev) => [...prev, newAnswer]);
+      answersRef.current = [...answersRef.current, newAnswer];
+    }
+    goToNext();
+  });
 
   // 載入複習 Session
   useEffect(() => {
@@ -75,7 +98,7 @@ export default function ReviewScreen() {
           return;
         }
         setSession(data);
-        setPhase("display");
+        setPagePhase("display");
       } catch (error) {
         Alert.alert("載入失敗", handleApiError(error), [
           { text: "返回", onPress: () => router.back() },
@@ -84,77 +107,40 @@ export default function ReviewScreen() {
     };
     loadSession();
 
-    return () => clearTimers();
+    return () => clearDisplayTimer();
   }, [router]);
 
-  // 展示階段：自動播放發音 + 3秒後自動進入練習
+  // 展示階段：自動播放發音 + 3秒後自動進入答題
   useEffect(() => {
-    if (phase === "display" && currentWord) {
+    if (pagePhase === "display" && currentWord) {
       // 播放音檔
       speak(currentWord.word, getAssetUrl(currentWord.audio_url));
 
       // 重置倒數
       const start = Date.now();
-      setRemainingMs(DISPLAY_DURATION);
+      setDisplayRemainingMs(DISPLAY_DURATION);
 
       // 設定倒數計時器
-      timerRef.current = setInterval(() => {
+      displayTimerRef.current = setInterval(() => {
         const elapsed = Date.now() - start;
         const remaining = Math.max(0, DISPLAY_DURATION - elapsed);
-        setRemainingMs(remaining);
+        setDisplayRemainingMs(remaining);
 
         if (remaining <= 0) {
-          clearTimers();
+          clearDisplayTimer();
           goToExercise();
         }
       }, COUNTDOWN_INTERVAL);
     }
 
-    return () => clearTimers();
-  }, [phase, currentIndex, currentWord, speak]);
-
-  // 練習階段倒數計時
-  useEffect(() => {
-    if (phase === "exercise" && currentExercise) {
-      const start = Date.now();
-      setRemainingMs(EXERCISE_DURATION);
-
-      timerRef.current = setInterval(() => {
-        const elapsed = Date.now() - start;
-        const remaining = Math.max(0, EXERCISE_DURATION - elapsed);
-        setRemainingMs(remaining);
-
-        if (remaining <= 0) {
-          clearTimers();
-          handleTimeout();
-        }
-      }, COUNTDOWN_INTERVAL);
-    }
-
-    return () => clearTimers();
-  }, [phase, currentIndex]);
-
-  // 超時處理
-  const handleTimeout = () => {
-    if (selectedOptionIndex !== null) return;
-
-    setSelectedOptionIndex(-1);
-    setAnswers((prev) => [
-      ...prev,
-      { word_id: currentWord!.id, correct: false },
-    ]);
-    setPhase("result");
-
-    setTimeout(() => {
-      goToNext();
-    }, 1500);
-  };
+    return () => clearDisplayTimer();
+  }, [pagePhase, currentIndex, currentWord, speak]);
 
   const getPoolLabel = (pool: string): string => {
     return `複習池 ${pool}`;
   };
 
-  // 進入練習階段
+  // 進入答題階段
   const goToExercise = async () => {
     // 如果還沒完成展示階段，先通知後端
     if (!displayCompleted) {
@@ -167,47 +153,16 @@ export default function ReviewScreen() {
       }
     }
 
-    setPhase("exercise");
-    setSelectedOptionIndex(null);
-  };
-
-  // 處理選項點擊
-  const handleOptionSelect = (index: number) => {
-    if (selectedOptionIndex !== null) return;
-
-    clearTimers();
-    setSelectedOptionIndex(index);
-    const correct = index === currentExercise?.correct_index;
-
-    setAnswers((prev) => [
-      ...prev,
-      { word_id: currentWord!.id, correct },
-    ]);
-
-    setPhase("result");
-
-    setTimeout(() => {
-      goToNext();
-    }, 1500);
-  };
-
-  // 進入下一題
-  const goToNext = () => {
-    if (currentIndex < totalWords - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setPhase("display");
-      setSelectedOptionIndex(null);
-    } else {
-      completeSession();
-    }
+    setPagePhase("exercising");
+    exerciseFlow.start();
   };
 
   // 完成複習
   const completeSession = async () => {
-    setPhase("complete");
+    setPagePhase("complete");
 
     try {
-      await reviewService.submit(answers);
+      await reviewService.submit(answersRef.current);
     } catch (error) {
       console.error("Submit review error:", error);
     }
@@ -215,14 +170,15 @@ export default function ReviewScreen() {
 
   // 返回
   const handleBack = () => {
-    clearTimers();
+    clearDisplayTimer();
+    exerciseFlow.clearTimer();
     Alert.alert("確定離開？", "複習進度將不會保存", [
       { text: "取消", style: "cancel" },
       { text: "離開", style: "destructive", onPress: () => router.back() },
     ]);
   };
 
-  if (phase === "loading") {
+  if (pagePhase === "loading") {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -231,7 +187,7 @@ export default function ReviewScreen() {
     );
   }
 
-  if (phase === "complete") {
+  if (pagePhase === "complete") {
     const correctCount = answers.filter((a) => a.correct).length;
     return (
       <SafeAreaView style={styles.completeContainer}>
@@ -275,10 +231,11 @@ export default function ReviewScreen() {
 
       {/* Content */}
       <View style={[styles.contentContainer, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
-        {phase === "display" && currentWord && (
+        {/* 展示階段：顯示單字和翻譯 */}
+        {pagePhase === "display" && currentWord && (
           <View style={styles.displayContainer}>
             {/* 倒數計時 */}
-            <CountdownText remainingMs={remainingMs} />
+            <CountdownText remainingMs={displayRemainingMs} />
 
             {/* Pool 標籤 */}
             <View style={styles.poolBadge}>
@@ -313,7 +270,8 @@ export default function ReviewScreen() {
           </View>
         )}
 
-        {(phase === "exercise" || phase === "result") && currentExercise && currentWord && (
+        {/* 答題階段 */}
+        {pagePhase === "exercising" && currentExercise && currentWord && (
           <View style={styles.exerciseContainer}>
             {/* Pool 標籤 */}
             <View style={styles.poolBadge}>
@@ -322,33 +280,54 @@ export default function ReviewScreen() {
               </Text>
             </View>
 
-            {/* 倒數計時（僅在答題階段） */}
-            {phase === "exercise" && (
-              <CountdownText remainingMs={remainingMs} />
+            {/* 題目階段：顯示單字，倒數計時 */}
+            {exerciseFlow.phase === "question" && (
+              <>
+                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                <Text style={styles.exerciseWordText}>
+                  {currentWord.word}
+                </Text>
+                <Text style={styles.exerciseHintText}>
+                  準備作答...
+                </Text>
+              </>
             )}
 
-            {/* 超時提示 */}
-            {phase === "result" && selectedOptionIndex === -1 && (
-              <Text style={styles.timeoutText}>時間到！</Text>
+            {/* 選項階段：顯示選項，倒數計時 */}
+            {exerciseFlow.phase === "options" && (
+              <>
+                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                <ExerciseOptions
+                  options={currentExercise.options}
+                  selectedIndex={null}
+                  correctIndex={currentExercise.correct_index}
+                  showResult={false}
+                  onSelect={exerciseFlow.select}
+                  disabled={false}
+                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                  showImage={currentExercise.type === "reading_lv1"}
+                />
+              </>
             )}
 
-            <Text style={styles.exerciseWordText}>
-              {currentWord.word}
-            </Text>
-            <Text style={styles.exerciseHintText}>
-              選出正確的翻譯
-            </Text>
-
-            <ExerciseOptions
-              options={currentExercise.options}
-              selectedIndex={selectedOptionIndex}
-              correctIndex={currentExercise.correct_index}
-              showResult={phase === "result"}
-              onSelect={handleOptionSelect}
-              disabled={phase === "result"}
-              layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-              showImage={currentExercise.type === "reading_lv1"}
-            />
+            {/* 結果階段：顯示正確答案 */}
+            {exerciseFlow.phase === "result" && (
+              <>
+                {exerciseFlow.selectedIndex === -1 && (
+                  <Text style={styles.timeoutText}>時間到！</Text>
+                )}
+                <ExerciseOptions
+                  options={currentExercise.options}
+                  selectedIndex={exerciseFlow.selectedIndex}
+                  correctIndex={currentExercise.correct_index}
+                  showResult={true}
+                  onSelect={() => {}}
+                  disabled={true}
+                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                  showImage={currentExercise.type === "reading_lv1"}
+                />
+              </>
+            )}
           </View>
         )}
       </View>

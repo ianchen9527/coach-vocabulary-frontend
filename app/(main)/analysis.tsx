@@ -19,8 +19,9 @@ import { colors } from "../../lib/tw";
 import { LevelAnalysisLogic } from "../../utils/level-analysis-logic";
 import { CountdownText } from "../../components/ui/CountdownText";
 import { ExerciseOptions } from "../../components/exercise";
+import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 
-type Phase = "loading" | "intro" | "q0" | "exercise" | "result" | "submitting";
+type PagePhase = "loading" | "intro" | "q0" | "exercising" | "submitting";
 
 const Q0_OPTIONS = [
     { id: 1, text: "我沒有學過", sub: "從最基礎開始" },
@@ -29,36 +30,68 @@ const Q0_OPTIONS = [
     { id: 4, text: "中高級：我能理解較抽象與較難單字，閱讀多數單字可掌握", sub: "" },
 ];
 
-const EXERCISE_DURATION = 5000; // 答題時間 5 秒
-const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms
-
 export default function AnalysisScreen() {
     const router = useRouter();
     const { width } = useWindowDimensions();
     const isWideScreen = width > 600;
     const contentMaxWidth = isWideScreen ? 480 : undefined;
 
-    const [phase, setPhase] = useState<Phase>("loading");
+    const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
     const [exercises, setExercises] = useState<LevelAnalysisExerciseSchema[]>([]);
     const [currentExercise, setCurrentExercise] = useState<LevelAnalysisExerciseSchema | null>(null);
-    const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-    const [remainingMs, setRemainingMs] = useState(EXERCISE_DURATION);
     const logicRef = useRef<LevelAnalysisLogic | null>(null);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const clearTimers = () => {
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
+    // 進入下一題或完成
+    const nextQuestion = useCallback(() => {
+        if (!logicRef.current) return;
+        const nextEx = logicRef.current.getNextQuestion();
+        if (nextEx) {
+            setCurrentExercise(nextEx);
+            exerciseFlow.reset();
+            setPagePhase("exercising");
+            // 需要在下一個 tick 啟動，讓 currentExercise 更新
+            setTimeout(() => exerciseFlow.start(), 0);
+        } else {
+            const state = logicRef.current.getState();
+            if (state.finalLevel) {
+                submitResult(state.finalLevel);
+            }
+        }
+    }, []);
+
+    // 提交結果
+    const submitResult = async (levelOrder: number) => {
+        setPagePhase("submitting");
+        try {
+            await analysisService.submit(levelOrder);
+            router.replace("/(main)");
+        } catch (error) {
+            Alert.alert("提交失敗", handleApiError(error), [
+                { text: "返回首頁", onPress: () => router.replace("/(main)") },
+            ]);
         }
     };
+
+    // 使用共用的答題流程 Hook
+    const exerciseFlow = useExerciseFlow({}, () => {
+        // 處理答案
+        if (!logicRef.current || !currentExercise) return;
+        const correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+        const finished = logicRef.current.handleAnswer(currentExercise.level_order, correct);
+        if (finished) {
+            const state = logicRef.current.getState();
+            submitResult(state.finalLevel!);
+        } else {
+            nextQuestion();
+        }
+    });
 
     const loadData = useCallback(async () => {
         try {
             const data = await analysisService.getSession();
             setExercises(data.exercises);
             logicRef.current = new LevelAnalysisLogic(data.exercises);
-            setPhase("intro");
+            setPagePhase("intro");
         } catch (error) {
             Alert.alert("載入失敗", handleApiError(error), [
                 { text: "返回", onPress: () => router.back() },
@@ -68,49 +101,9 @@ export default function AnalysisScreen() {
 
     useEffect(() => {
         loadData();
-        return () => clearTimers();
     }, [loadData]);
 
-    // 練習階段倒數計時
-    useEffect(() => {
-        if (phase === "exercise" && currentExercise) {
-            const start = Date.now();
-            setRemainingMs(EXERCISE_DURATION);
-
-            timerRef.current = setInterval(() => {
-                const elapsed = Date.now() - start;
-                const remaining = Math.max(0, EXERCISE_DURATION - elapsed);
-                setRemainingMs(remaining);
-
-                if (remaining <= 0) {
-                    clearTimers();
-                    handleTimeout();
-                }
-            }, COUNTDOWN_INTERVAL);
-        }
-
-        return () => clearTimers();
-    }, [phase, currentExercise]);
-
-    const handleTimeout = () => {
-        if (selectedOptionIndex !== null || !logicRef.current || !currentExercise) return;
-
-        setSelectedOptionIndex(-1);
-        setPhase("result");
-
-        setTimeout(async () => {
-            if (!logicRef.current || !currentExercise) return;
-            const finished = logicRef.current.handleAnswer(currentExercise.level_order, false);
-            if (finished) {
-                const state = logicRef.current.getState();
-                submitResult(state.finalLevel!);
-            } else {
-                nextQuestion();
-            }
-        }, 1500);
-    };
-
-    const handleStartQ0 = () => setPhase("q0");
+    const handleStartQ0 = () => setPagePhase("q0");
 
     const handleQ0Select = (id: number) => {
         if (!logicRef.current) return;
@@ -122,63 +115,15 @@ export default function AnalysisScreen() {
         }
     };
 
-    const nextQuestion = () => {
-        if (!logicRef.current) return;
-        const nextEx = logicRef.current.getNextQuestion();
-        if (nextEx) {
-            setCurrentExercise(nextEx);
-            setSelectedOptionIndex(null);
-            setPhase("exercise");
-        } else {
-            const state = logicRef.current.getState();
-            if (state.finalLevel) {
-                submitResult(state.finalLevel);
-            }
-        }
-    };
-
-    const handleOptionSelect = (index: number) => {
-        if (selectedOptionIndex !== null || !logicRef.current || !currentExercise) return;
-
-        clearTimers();
-        setSelectedOptionIndex(index);
-        const correct = index === currentExercise.correct_index;
-
-        setPhase("result");
-
-        setTimeout(async () => {
-            if (!logicRef.current || !currentExercise) return;
-            const finished = logicRef.current.handleAnswer(currentExercise.level_order, correct);
-            if (finished) {
-                const state = logicRef.current.getState();
-                submitResult(state.finalLevel!);
-            } else {
-                nextQuestion();
-            }
-        }, 1500);
-    };
-
-    const submitResult = async (levelOrder: number) => {
-        setPhase("submitting");
-        try {
-            await analysisService.submit(levelOrder);
-            router.replace("/(main)");
-        } catch (error) {
-            Alert.alert("提交失敗", handleApiError(error), [
-                { text: "返回首頁", onPress: () => router.replace("/(main)") },
-            ]);
-        }
-    };
-
     const handleBack = () => {
-        clearTimers();
+        exerciseFlow.clearTimer();
         Alert.alert("確定離開？", "分析進度將不會保存", [
             { text: "取消", style: "cancel" },
             { text: "離開", style: "destructive", onPress: () => router.back() },
         ]);
     };
 
-    if (phase === "loading") {
+    if (pagePhase === "loading") {
         return (
             <SafeAreaView style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -187,7 +132,7 @@ export default function AnalysisScreen() {
         );
     }
 
-    if (phase === "submitting") {
+    if (pagePhase === "submitting") {
         return (
             <SafeAreaView style={styles.loadingContainer}>
                 <Sparkles size={48} color={colors.primary} style={{ marginBottom: 16 }} />
@@ -198,7 +143,7 @@ export default function AnalysisScreen() {
         );
     }
 
-    if (phase === "intro") {
+    if (pagePhase === "intro") {
         return (
             <SafeAreaView style={styles.introContainer}>
                 <View style={styles.introIconContainer}>
@@ -216,7 +161,7 @@ export default function AnalysisScreen() {
         );
     }
 
-    if (phase === "q0") {
+    if (pagePhase === "q0") {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
@@ -287,33 +232,52 @@ export default function AnalysisScreen() {
             <View style={[styles.contentContainer, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
                 {currentExercise && (
                     <View style={styles.exerciseContainer}>
-                        {/* 倒數計時 */}
-                        {phase === "exercise" && (
-                            <CountdownText remainingMs={remainingMs} />
+                        {/* 題目階段：顯示單字，倒數計時 */}
+                        {exerciseFlow.phase === "question" && (
+                            <>
+                                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                                <Text style={styles.exerciseWordText}>
+                                    {currentExercise.word}
+                                </Text>
+                                <Text style={styles.exerciseHintText}>準備作答...</Text>
+                            </>
                         )}
 
-                        {/* 超時提示 */}
-                        {phase === "result" && selectedOptionIndex === -1 && (
-                            <Text style={styles.timeoutText}>時間到！</Text>
+                        {/* 選項階段：顯示選項，倒數計時 */}
+                        {exerciseFlow.phase === "options" && (
+                            <>
+                                <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                                <ExerciseOptions
+                                    options={currentExercise.options}
+                                    selectedIndex={null}
+                                    correctIndex={currentExercise.correct_index}
+                                    showResult={false}
+                                    onSelect={exerciseFlow.select}
+                                    disabled={false}
+                                    layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                                    showImage={currentExercise.type === "reading_lv1"}
+                                />
+                            </>
                         )}
 
-                        {/* Question Word */}
-                        <Text style={styles.exerciseWordText}>
-                            {currentExercise.word}
-                        </Text>
-
-                        <Text style={styles.exerciseHintText}>選出正確的翻譯</Text>
-
-                        <ExerciseOptions
-                            options={currentExercise.options}
-                            selectedIndex={selectedOptionIndex}
-                            correctIndex={currentExercise.correct_index}
-                            showResult={phase === "result"}
-                            onSelect={handleOptionSelect}
-                            disabled={phase === "result"}
-                            layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                            showImage={currentExercise.type === "reading_lv1"}
-                        />
+                        {/* 結果階段：顯示正確答案 */}
+                        {exerciseFlow.phase === "result" && (
+                            <>
+                                {exerciseFlow.selectedIndex === -1 && (
+                                    <Text style={styles.timeoutText}>時間到！</Text>
+                                )}
+                                <ExerciseOptions
+                                    options={currentExercise.options}
+                                    selectedIndex={exerciseFlow.selectedIndex}
+                                    correctIndex={currentExercise.correct_index}
+                                    showResult={true}
+                                    onSelect={() => {}}
+                                    disabled={true}
+                                    layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                                    showImage={currentExercise.type === "reading_lv1"}
+                                />
+                            </>
+                        )}
                     </View>
                 )}
             </View>
