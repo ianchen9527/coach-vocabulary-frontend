@@ -138,7 +138,7 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.content, contentMaxWidth ? { maxWidth: contentMaxWidth } : null]}>
+          <View style={[styles.content, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
             {/* Logo & Title */}
             <View style={styles.logoContainer}>
               <View style={styles.logoCircle}>
