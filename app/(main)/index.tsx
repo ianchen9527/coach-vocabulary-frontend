@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { colors } from "../../lib/tw";
+import { notificationService } from "../../services/notificationService";
 
 type ActionType = "review" | "practice" | "learn" | null;
 
@@ -47,6 +48,14 @@ export default function HomeScreen() {
     try {
       const data = await homeService.getStats();
       setStats(data);
+
+      // 自動預約或更新通知
+      if (data.next_available_time) {
+        notificationService.scheduleNextSessionNotification(data.next_available_time);
+      } else {
+        // 如果目前沒有等待中的任務，且也沒有下次時間，則取消現有通知
+        notificationService.cancelAllNotifications();
+      }
     } catch (error) {
       const message = handleApiError(error);
       Alert.alert("載入失敗", message);
@@ -130,6 +139,10 @@ export default function HomeScreen() {
     setIsResetting(true);
     try {
       const result = await adminService.resetCooldown();
+
+      // 重置成功後立即取消通知
+      await notificationService.cancelAllNotifications();
+
       await fetchStats();
       Alert.alert(
         "重置成功",
