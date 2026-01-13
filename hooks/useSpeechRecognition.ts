@@ -69,7 +69,7 @@ export function useSpeechRecognition(
   // 事件監聽：辨識結果
   useSpeechRecognitionEvent("result", (event) => {
     const result = event.results[event.results.length - 1];
-    if (result.isFinal) {
+    if (event.isFinal) {
       setFinalTranscript(result.transcript);
       setInterimTranscript("");
     } else {

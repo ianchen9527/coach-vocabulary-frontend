@@ -51,7 +51,6 @@ export default function ReviewScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
   const [answers, setAnswers] = useState<AnswerSchema[]>([]);
-  const [displayCompleted, setDisplayCompleted] = useState(false);
   const [displayRemainingMs, setDisplayRemainingMs] = useState(DISPLAY_DURATION);
 
   // 口說練習專用狀態
@@ -59,7 +58,6 @@ export default function ReviewScreen() {
   const [isRecording, setIsRecording] = useState(false);
 
   const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const answersRef = useRef<AnswerSchema[]>([]);
 
   const words = session?.words || [];
   const exercises = session?.exercises || [];
@@ -103,7 +101,6 @@ export default function ReviewScreen() {
 
       const newAnswer = { word_id: currentWord.id, correct };
       setAnswers((prev) => [...prev, newAnswer]);
-      answersRef.current = [...answersRef.current, newAnswer];
     }
 
     // 清理口說狀態
@@ -278,18 +275,7 @@ export default function ReviewScreen() {
   }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord]);
 
   // 進入答題階段
-  const goToExercise = async () => {
-    // 如果還沒完成展示階段，先通知後端
-    if (!displayCompleted) {
-      try {
-        const wordIds = words.map((w) => w.id);
-        await reviewService.complete(wordIds);
-        setDisplayCompleted(true);
-      } catch (error) {
-        console.error("Review complete error:", error);
-      }
-    }
-
+  const goToExercise = () => {
     setPagePhase("exercising");
     exerciseFlow.start();
   };
@@ -299,9 +285,10 @@ export default function ReviewScreen() {
     setPagePhase("complete");
 
     try {
-      await reviewService.submit(answersRef.current);
+      const wordIds = words.map((w) => w.id);
+      await reviewService.complete(wordIds);
     } catch (error) {
-      console.error("Submit review error:", error);
+      console.error("Review complete error:", error);
     }
   };
 

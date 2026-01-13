@@ -161,20 +161,6 @@ export interface ReviewCompleteResponse {
   next_practice_time: string;
 }
 
-export interface ReviewSubmitRequest {
-  answers: AnswerSchema[];
-}
-
-export interface ReviewSubmitResponse {
-  success: boolean;
-  results: AnswerResultSchema[];
-  summary: {
-    correct_count: number;
-    incorrect_count: number;
-    returned_to_p: number;
-  };
-}
-
 // === Admin ===
 export interface ResetCooldownResponse {
   success: boolean;
