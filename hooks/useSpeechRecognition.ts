@@ -26,6 +26,7 @@ export interface UseSpeechRecognitionReturn {
   start: () => Promise<boolean>;
   stop: () => void;
   abort: () => void;
+  reset: () => void;
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -153,6 +154,13 @@ export function useSpeechRecognition(
     }
   }, []);
 
+  // 重置辨識狀態（清除上一題的結果）
+  const reset = useCallback(() => {
+    setInterimTranscript("");
+    setFinalTranscript("");
+    setError(null);
+  }, []);
+
   return {
     isRecognizing,
     interimTranscript,
@@ -163,5 +171,6 @@ export function useSpeechRecognition(
     start,
     stop,
     abort,
+    reset,
   };
 }

@@ -102,6 +102,9 @@ export default function PracticeScreen() {
 
   // 進入下一題
   const goToNextExercise = useCallback(() => {
+    // 清除上一題的語音辨識結果
+    speechRecognition.reset();
+
     if (currentIndex < totalExercises - 1) {
       const nextExercise = exercises[currentIndex + 1];
       const nextCategory = getExerciseCategory(nextExercise.type);
@@ -264,14 +267,14 @@ export default function PracticeScreen() {
   }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, speechRecognition.finalTranscript, speechRecognition.interimTranscript]);
 
   // 監聽辨識完成並自動提交答案
-  // 注意：不依賴 isRecording，因為 handleStopRecording 會在 finalTranscript 回傳前就設為 false
-  // 改用 exerciseFlow.phase === "options" 來確保只處理一次
+  // isRecording 確保是「這一題」的錄音結果，避免用上一題的 finalTranscript 判斷
   useEffect(() => {
     if (
       speechRecognition.finalTranscript &&
       currentExercise?.type.startsWith("speaking") &&
       pagePhase === "exercising" &&
-      exerciseFlow.phase === "options"
+      exerciseFlow.phase === "options" &&
+      isRecording
     ) {
       setIsRecording(false);
       setRecognizedText(speechRecognition.finalTranscript);
@@ -286,7 +289,7 @@ export default function PracticeScreen() {
       // 使用 0 表示正確，-1 表示錯誤
       exerciseFlow.select(correct ? 0 : -1);
     }
-  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase]);
+  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, isRecording]);
 
   // 開始練習（從 intro 進入）
   const startExercise = () => {

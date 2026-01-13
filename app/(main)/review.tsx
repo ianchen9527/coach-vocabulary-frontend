@@ -75,6 +75,9 @@ export default function ReviewScreen() {
 
   // 進入下一題
   const goToNext = () => {
+    // 清除上一題的語音辨識結果
+    speechRecognition.reset();
+
     if (currentIndex < totalWords - 1) {
       setCurrentIndex((prev) => prev + 1);
       setPagePhase("display");
@@ -254,13 +257,15 @@ export default function ReviewScreen() {
   }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, speechRecognition.finalTranscript, speechRecognition.interimTranscript]);
 
   // 監聽辨識完成並自動提交答案
+  // isRecording 確保是「這一題」的錄音結果，避免用上一題的 finalTranscript 判斷
   useEffect(() => {
     if (
       speechRecognition.finalTranscript &&
       currentExercise?.type.startsWith("speaking") &&
       pagePhase === "exercising" &&
       exerciseFlow.phase === "options" &&
-      currentWord
+      currentWord &&
+      isRecording
     ) {
       setIsRecording(false);
       setRecognizedText(speechRecognition.finalTranscript);
@@ -272,7 +277,7 @@ export default function ReviewScreen() {
 
       exerciseFlow.select(correct ? 0 : -1);
     }
-  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord]);
+  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord, isRecording]);
 
   // 進入答題階段
   const goToExercise = () => {
