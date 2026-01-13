@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { learnService } from "../../services/learnService";
 import { handleApiError, getAssetUrl } from "../../services/api";
-import type { LearnSessionResponse } from "../../types/api";
+import type { LearnSessionResponse, AnswerSchema } from "../../types/api";
 import { Volume2, Check } from "lucide-react-native";
 import { useSpeech } from "../../hooks/useSpeech";
 import { colors } from "../../lib/tw";
@@ -43,8 +43,10 @@ export default function LearnScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
   const [displayRemainingMs, setDisplayRemainingMs] = useState(DISPLAY_DURATION);
+  const [answers, setAnswers] = useState<AnswerSchema[]>([]);
 
   const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answersRef = useRef<AnswerSchema[]>([]);
 
   const currentWord = session?.words[currentIndex];
   const currentExercise = session?.exercises[currentIndex];
@@ -63,7 +65,34 @@ export default function LearnScreen() {
   };
 
   // 使用共用的答題流程 Hook
-  const exerciseFlow = useExerciseFlow({}, goToNext);
+  const exerciseFlow = useExerciseFlow({}, () => {
+    // 記錄答案
+    if (currentWord && currentExercise) {
+      // 計算回答時間（超時時也記錄實際時間）
+      const responseTimeMs = exerciseFlow.getResponseTimeMs() ?? undefined;
+
+      // 判斷是否正確
+      const correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+
+      // 取得使用者選擇的答案
+      let userAnswer: string | undefined;
+      if (exerciseFlow.selectedIndex !== null && exerciseFlow.selectedIndex >= 0) {
+        userAnswer = currentExercise.options[exerciseFlow.selectedIndex]?.translation;
+      }
+
+      const newAnswer: AnswerSchema = {
+        word_id: currentWord.id,
+        correct,
+        exercise_type: currentExercise.type,
+        user_answer: userAnswer,
+        response_time_ms: responseTimeMs,
+      };
+      setAnswers((prev) => [...prev, newAnswer]);
+      answersRef.current = [...answersRef.current, newAnswer];
+    }
+
+    goToNext();
+  });
 
   // 清理展示階段計時器
   const clearDisplayTimer = () => {
@@ -131,7 +160,7 @@ export default function LearnScreen() {
 
     try {
       const wordIds = session.words.map((w) => w.id);
-      await learnService.complete(wordIds);
+      await learnService.complete(wordIds, answersRef.current);
     } catch (error) {
       console.error("Complete session error:", error);
     }

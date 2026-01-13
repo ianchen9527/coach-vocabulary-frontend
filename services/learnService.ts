@@ -3,6 +3,7 @@ import type {
   LearnSessionResponse,
   LearnCompleteRequest,
   LearnCompleteResponse,
+  AnswerSchema,
 } from "../types/api";
 
 export const learnService = {
@@ -17,9 +18,10 @@ export const learnService = {
   /**
    * 完成學習
    * @param wordIds 已學習的單字 ID 列表
+   * @param answers 答題歷史記錄
    */
-  async complete(wordIds: string[]): Promise<LearnCompleteResponse> {
-    const request: LearnCompleteRequest = { word_ids: wordIds };
+  async complete(wordIds: string[], answers?: AnswerSchema[]): Promise<LearnCompleteResponse> {
+    const request: LearnCompleteRequest = { word_ids: wordIds, answers };
     const response = await api.post<LearnCompleteResponse>(
       "/api/learn/complete",
       request

@@ -94,6 +94,9 @@ export interface ExerciseWithWordSchema extends ExerciseSchema {
 export interface AnswerSchema {
   word_id: string;
   correct: boolean;
+  exercise_type: string;      // 練習類型
+  user_answer?: string;       // 使用者的回答內容
+  response_time_ms?: number;  // 回答花費時間（毫秒）
 }
 
 export interface AnswerResultSchema {
@@ -114,6 +117,7 @@ export interface LearnSessionResponse {
 
 export interface LearnCompleteRequest {
   word_ids: string[];
+  answers?: AnswerSchema[];
 }
 
 export interface LearnCompleteResponse {
@@ -153,6 +157,7 @@ export interface ReviewSessionResponse {
 
 export interface ReviewCompleteRequest {
   word_ids: string[];
+  answers?: AnswerSchema[];
 }
 
 export interface ReviewCompleteResponse {

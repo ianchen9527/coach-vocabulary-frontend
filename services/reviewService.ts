@@ -3,6 +3,7 @@ import type {
   ReviewSessionResponse,
   ReviewCompleteRequest,
   ReviewCompleteResponse,
+  AnswerSchema,
 } from "../types/api";
 
 export const reviewService = {
@@ -17,9 +18,10 @@ export const reviewService = {
   /**
    * 完成複習
    * @param wordIds 已複習的單字 ID 列表
+   * @param answers 答題歷史記錄
    */
-  async complete(wordIds: string[]): Promise<ReviewCompleteResponse> {
-    const request: ReviewCompleteRequest = { word_ids: wordIds };
+  async complete(wordIds: string[], answers?: AnswerSchema[]): Promise<ReviewCompleteResponse> {
+    const request: ReviewCompleteRequest = { word_ids: wordIds, answers };
     const response = await api.post<ReviewCompleteResponse>(
       "/api/review/complete",
       request

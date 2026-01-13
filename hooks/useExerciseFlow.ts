@@ -29,6 +29,8 @@ export function useExerciseFlow(
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCompleteRef = useRef(onComplete);
+  const optionsStartTimeRef = useRef<number | null>(null);
+  const responseTimeMsRef = useRef<number | null>(null);
 
   // 保持 onComplete 的最新參照
   useEffect(() => {
@@ -81,6 +83,11 @@ export function useExerciseFlow(
       setSelectedIndex(optionIndex);
       setPhase("result");
 
+      // 記錄回答時間（在進入 result 階段時記錄，而非 callback 中）
+      if (optionsStartTimeRef.current !== null) {
+        responseTimeMsRef.current = Date.now() - optionsStartTimeRef.current;
+      }
+
       resultTimeoutRef.current = setTimeout(() => {
         onCompleteRef.current?.();
       }, finalConfig.resultDuration);
@@ -96,6 +103,7 @@ export function useExerciseFlow(
 
     startCountdown(finalConfig.questionDuration, () => {
       setPhase("options");
+      optionsStartTimeRef.current = Date.now();
       startCountdown(finalConfig.optionsDuration, () => {
         // 超時
         enterResult(-1);
@@ -118,7 +126,14 @@ export function useExerciseFlow(
     setPhase("idle");
     setSelectedIndex(null);
     setRemainingMs(0);
+    optionsStartTimeRef.current = null;
+    responseTimeMsRef.current = null;
   }, [clearTimer]);
+
+  // 取得回答時間（在進入 result 階段時已記錄）
+  const getResponseTimeMs = useCallback((): number | null => {
+    return responseTimeMsRef.current;
+  }, []);
 
   // 清理
   useEffect(() => {
@@ -133,5 +148,6 @@ export function useExerciseFlow(
     select,
     reset,
     clearTimer,
+    getResponseTimeMs,
   };
 }

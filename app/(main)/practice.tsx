@@ -130,17 +130,33 @@ export default function PracticeScreen() {
     // 記錄答案
     if (currentExercise) {
       let correct = false;
+      let userAnswer: string | undefined;
+
+      // 計算回答時間（超時時也記錄實際時間）
+      const responseTimeMs = exerciseFlow.getResponseTimeMs() ?? undefined;
 
       if (currentExercise.type.startsWith("speaking")) {
         // 口說題：根據辨識結果判斷
         correct = recognizedText.trim() !== "" &&
                   checkAnswer(recognizedText, currentExercise.word);
+        // user_answer：使用 recognizedText（包含超時時的 interim transcript）
+        userAnswer = recognizedText.trim() || undefined;
       } else {
         // 閱讀/聽力題：根據選中的索引判斷
         correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+        // user_answer：使用選中選項的 translation
+        if (exerciseFlow.selectedIndex !== null && exerciseFlow.selectedIndex >= 0) {
+          userAnswer = currentExercise.options[exerciseFlow.selectedIndex]?.translation;
+        }
       }
 
-      const newAnswer: AnswerSchema = { word_id: currentExercise.word_id, correct };
+      const newAnswer: AnswerSchema = {
+        word_id: currentExercise.word_id,
+        correct,
+        exercise_type: currentExercise.type,
+        user_answer: userAnswer,
+        response_time_ms: responseTimeMs,
+      };
       setAnswers((prev) => [...prev, newAnswer]);
       answersRef.current = [...answersRef.current, newAnswer];
     }
