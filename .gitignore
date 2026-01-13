@@ -41,3 +41,7 @@ yarn-error.*
 /android
 
 .vscode/
+
+PROMPT.md
+ralph.yml   
+ralph_orchestrator.log
