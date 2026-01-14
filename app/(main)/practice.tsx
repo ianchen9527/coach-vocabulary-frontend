@@ -7,6 +7,7 @@ import {
   Image,
   StyleSheet,
   useWindowDimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -48,7 +49,7 @@ export default function PracticeScreen() {
   const speechRecognition = useSpeechRecognition({
     lang: "en-US",
     interimResults: true,
-    continuous: false,
+    continuous: true,
   });
 
   // 寬螢幕時使用較窄的內容寬度
@@ -64,6 +65,7 @@ export default function PracticeScreen() {
   // 口說練習專用狀態
   const [recognizedText, setRecognizedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isPreparingRecording, setIsPreparingRecording] = useState(false);
 
   const exercises = session?.exercises || [];
   const currentExercise = exercises[currentIndex];
@@ -90,7 +92,9 @@ export default function PracticeScreen() {
         setPagePhase("exercising");
         exerciseFlow.reset();
         // 需要在下一個 tick 啟動，讓 currentExercise 更新
-        setTimeout(() => exerciseFlow.start(), 0);
+        // 口說題：延遲 options 倒數，等錄音準備好再開始
+        const isSpeaking = nextExercise.type.startsWith("speaking");
+        setTimeout(() => exerciseFlow.start(isSpeaking), 0);
       }
     } else {
       completeSession();
@@ -180,15 +184,24 @@ export default function PracticeScreen() {
 
   // 錄音函數
   const startRecording = async () => {
+    setIsPreparingRecording(true);
+
     if (!speechRecognition.isSupported) {
+      setIsPreparingRecording(false);
       Alert.alert("不支援", "此裝置不支援語音辨識功能");
       exerciseFlow.select(-1); // 標記為錯誤/超時
       return;
     }
 
-    const success = await speechRecognition.start();
+    const success = await speechRecognition.start({
+      contextualStrings: currentExercise?.word ? [currentExercise.word] : undefined,
+    });
+    setIsPreparingRecording(false);
+
     if (success) {
       setIsRecording(true);
+      // 錄音準備好後，手動開始 options 倒數
+      exerciseFlow.startOptionsCountdown();
     } else {
       Alert.alert(
         "無法啟動",
@@ -226,11 +239,12 @@ export default function PracticeScreen() {
       pagePhase === "exercising" &&
       exerciseFlow.phase === "options" &&
       currentExercise?.type.startsWith("speaking") &&
-      !isRecording
+      !isRecording &&
+      !isPreparingRecording // 避免重複觸發
     ) {
       startRecording();
     }
-  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording]);
+  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, isPreparingRecording]);
 
   // 口說題：超時時檢查是否有已辨識的內容
   useEffect(() => {
@@ -245,8 +259,6 @@ export default function PracticeScreen() {
 
       if (transcript) {
         setRecognizedText(transcript);
-        // 注意：這裡不能改變 exerciseFlow.selectedIndex，因為已經在 result 階段
-        // 但我們可以更新 recognizedText 來顯示用戶說了什麼
       }
 
       speechRecognition.abort();
@@ -264,6 +276,8 @@ export default function PracticeScreen() {
       exerciseFlow.phase === "options" &&
       isRecording
     ) {
+      // 先停止辨識，避免 continuous 模式下連線持續佔用
+      speechRecognition.abort();
       setIsRecording(false);
       setRecognizedText(speechRecognition.finalTranscript);
 
@@ -282,7 +296,9 @@ export default function PracticeScreen() {
   // 開始練習（從 intro 進入）
   const startExercise = () => {
     setPagePhase("exercising");
-    exerciseFlow.start();
+    // 口說題：延遲 options 倒數，等錄音準備好再開始
+    const isSpeaking = currentExercise?.type.startsWith("speaking") ?? false;
+    exerciseFlow.start(isSpeaking);
   };
 
   // 完成練習
@@ -422,52 +438,65 @@ export default function PracticeScreen() {
                 {/* 選項階段 */}
                 {exerciseFlow.phase === "options" && (
                   <>
-                    <CountdownText remainingMs={exerciseFlow.remainingMs} />
                     {currentExercise.type.startsWith("speaking") ? (
-                      <>
-                        {/* 錄音中圖示 */}
-                        <View style={styles.recordingContainer}>
-                          <View style={[styles.micButton, isRecording && styles.micButtonActive]}>
-                            <Mic size={48} color={isRecording ? colors.destructive : colors.primary} />
+                      isPreparingRecording ? (
+                        // 準備錄音中：顯示 spinner
+                        <View style={styles.preparingContainer}>
+                          <ActivityIndicator size="large" color={colors.primary} />
+                          <Text style={styles.preparingText}>準備錄音中...</Text>
+                        </View>
+                      ) : (
+                        // 錄音中：顯示倒數 + 錄音 UI
+                        <>
+                          <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                          {/* 錄音中圖示 */}
+                          <View style={styles.recordingContainer}>
+                            <View style={[styles.micButton, isRecording && styles.micButtonActive]}>
+                              <Mic size={48} color={isRecording ? colors.destructive : colors.primary} />
+                            </View>
+                            {isRecording && (
+                              <View style={styles.recordingIndicator}>
+                                <View style={styles.recordingDot} />
+                                <Text style={styles.recordingText}>錄音中...</Text>
+                              </View>
+                            )}
                           </View>
-                          {isRecording && (
-                            <View style={styles.recordingIndicator}>
-                              <View style={styles.recordingDot} />
-                              <Text style={styles.recordingText}>錄音中...</Text>
+
+                          {/* 即時辨識結果 */}
+                          {speechRecognition.interimTranscript && (
+                            <View style={styles.transcriptBox}>
+                              <Text style={styles.transcriptLabel}>辨識中：</Text>
+                              <Text style={styles.transcriptText}>
+                                "{speechRecognition.interimTranscript}"
+                              </Text>
                             </View>
                           )}
-                        </View>
 
-                        {/* 即時辨識結果 */}
-                        {speechRecognition.interimTranscript && (
-                          <View style={styles.transcriptBox}>
-                            <Text style={styles.transcriptLabel}>辨識中：</Text>
-                            <Text style={styles.transcriptText}>
-                              "{speechRecognition.interimTranscript}"
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* 完成按鈕 */}
-                        <TouchableOpacity
-                          style={styles.primaryButton}
-                          onPress={handleStopRecording}
-                          disabled={!isRecording}
-                        >
-                          <Text style={styles.primaryButtonText}>完成</Text>
-                        </TouchableOpacity>
-                      </>
+                          {/* 完成按鈕 */}
+                          <TouchableOpacity
+                            style={styles.primaryButton}
+                            onPress={handleStopRecording}
+                            disabled={!isRecording}
+                          >
+                            <Text style={styles.primaryButtonText}>完成</Text>
+                          </TouchableOpacity>
+                        </>
+                      )
                     ) : (
-                      <ExerciseOptions
-                        options={currentExercise.options}
-                        selectedIndex={null}
-                        correctIndex={currentExercise.correct_index}
-                        showResult={false}
-                        onSelect={exerciseFlow.select}
-                        disabled={false}
-                        layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                        showImage={currentExercise.type === "reading_lv1"}
-                      />
+                      // 非口說題：正常顯示
+                      <>
+                        <CountdownText remainingMs={exerciseFlow.remainingMs} />
+                        <ExerciseOptions
+                          options={currentExercise.options}
+                          selectedIndex={null}
+                          correctIndex={currentExercise.correct_index}
+                          showResult={false}
+                          onSelect={exerciseFlow.select}
+                          disabled={false}
+                          layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
+                          showImage={currentExercise.type === "reading_lv1"}
+                        />
+                      </>
                     )}
                   </>
                 )}
@@ -599,6 +628,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   listeningText: {
+    fontSize: 16,
+    color: colors.mutedForeground,
+  },
+
+  // 準備錄音中
+  preparingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  preparingText: {
+    marginTop: 16,
     fontSize: 16,
     color: colors.mutedForeground,
   },

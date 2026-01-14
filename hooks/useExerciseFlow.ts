@@ -96,7 +96,8 @@ export function useExerciseFlow(
   );
 
   // 開始答題（進入 question phase）
-  const start = useCallback(() => {
+  // delayOptionsCountdown: 如果為 true，進入 options 階段時不自動開始倒數（用於口說題等待錄音準備好）
+  const start = useCallback((delayOptionsCountdown = false) => {
     clearTimer();
     setSelectedIndex(null);
     setPhase("question");
@@ -104,12 +105,26 @@ export function useExerciseFlow(
     startCountdown(finalConfig.questionDuration, () => {
       setPhase("options");
       optionsStartTimeRef.current = Date.now();
-      startCountdown(finalConfig.optionsDuration, () => {
-        // 超時
-        enterResult(-1);
-      });
+
+      // 只有在不延遲的情況下才自動開始倒數
+      if (!delayOptionsCountdown) {
+        startCountdown(finalConfig.optionsDuration, () => {
+          // 超時
+          enterResult(-1);
+        });
+      }
     });
   }, [finalConfig, startCountdown, clearTimer, enterResult]);
+
+  // 手動開始 options 倒數（用於口說題錄音準備好後）
+  const startOptionsCountdown = useCallback(() => {
+    if (phase === "options") {
+      optionsStartTimeRef.current = Date.now(); // 重設開始時間
+      startCountdown(finalConfig.optionsDuration, () => {
+        enterResult(-1);
+      });
+    }
+  }, [phase, finalConfig.optionsDuration, startCountdown, enterResult]);
 
   // 選擇選項
   const select = useCallback(
@@ -145,6 +160,7 @@ export function useExerciseFlow(
     remainingMs,
     selectedIndex,
     start,
+    startOptionsCountdown,
     select,
     reset,
     clearTimer,

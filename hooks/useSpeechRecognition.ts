@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import {
   ExpoSpeechRecognitionModule,
@@ -13,6 +13,10 @@ export interface UseSpeechRecognitionConfig {
   continuous?: boolean;
 }
 
+export interface StartOptions {
+  contextualStrings?: string[];
+}
+
 export interface UseSpeechRecognitionReturn {
   // 狀態
   isRecognizing: boolean;
@@ -23,7 +27,7 @@ export interface UseSpeechRecognitionReturn {
   hasPermission: boolean | null;
 
   // 方法
-  start: () => Promise<boolean>;
+  start: (options?: StartOptions) => Promise<boolean>;
   stop: () => void;
   abort: () => void;
   reset: () => void;
@@ -51,6 +55,9 @@ export function useSpeechRecognition(
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
+  // 用於等待 start 事件的 Promise resolve
+  const startResolveRef = useRef<((value: boolean) => void) | null>(null);
+
   // 檢查平台支援
   const isSupported =
     Platform.OS !== "web" ||
@@ -60,6 +67,11 @@ export function useSpeechRecognition(
   useSpeechRecognitionEvent("start", () => {
     setIsRecognizing(true);
     setError(null);
+    // 通知 start() 函數辨識已真正開始
+    if (startResolveRef.current) {
+      startResolveRef.current(true);
+      startResolveRef.current = null;
+    }
   });
 
   // 事件監聽：結束
@@ -80,8 +92,16 @@ export function useSpeechRecognition(
 
   // 事件監聽：錯誤
   useSpeechRecognitionEvent("error", (event) => {
+    // "aborted" 是我們主動呼叫 abort() 的結果，不算真正的錯誤
+    if (event.error !== "aborted") {
+      setError(getErrorMessage(event.error));
+      // 如果在等待 start，通知失敗
+      if (startResolveRef.current) {
+        startResolveRef.current(false);
+        startResolveRef.current = null;
+      }
+    }
     setIsRecognizing(false);
-    setError(getErrorMessage(event.error));
   });
 
   // 請求權限
@@ -98,7 +118,7 @@ export function useSpeechRecognition(
   }, []);
 
   // 開始辨識
-  const start = useCallback(async (): Promise<boolean> => {
+  const start = useCallback(async (startOptions?: StartOptions): Promise<boolean> => {
     if (!isSupported) {
       setError("此裝置不支援語音辨識");
       return false;
@@ -124,10 +144,26 @@ export function useSpeechRecognition(
         interimResults: config.interimResults ?? true,
         maxAlternatives: config.maxAlternatives || 1,
         continuous: config.continuous || false,
+        contextualStrings: startOptions?.contextualStrings,
       };
 
+      // 建立 Promise 等待 start 事件
+      const startPromise = new Promise<boolean>((resolve) => {
+        startResolveRef.current = resolve;
+        // 設定 timeout，避免無限等待
+        setTimeout(() => {
+          if (startResolveRef.current) {
+            startResolveRef.current(false);
+            startResolveRef.current = null;
+          }
+        }, 3000);
+      });
+
       ExpoSpeechRecognitionModule.start(options);
-      return true;
+
+      // 等待 start 事件觸發
+      const started = await startPromise;
+      return started;
     } catch (err) {
       setError("無法啟動語音辨識");
       return false;
@@ -150,7 +186,7 @@ export function useSpeechRecognition(
       setIsRecognizing(false);
       setInterimTranscript("");
     } catch (err) {
-      console.error("Abort recognition error:", err);
+      // Silently ignore abort errors
     }
   }, []);
 

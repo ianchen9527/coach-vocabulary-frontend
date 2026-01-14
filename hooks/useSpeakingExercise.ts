@@ -37,7 +37,7 @@ export function useSpeakingExercise({
   const speechRecognition = useSpeechRecognition({
     lang: "en-US",
     interimResults: true,
-    continuous: false,
+    continuous: true,
   });
 
   // 比對邏輯（包含匹配）

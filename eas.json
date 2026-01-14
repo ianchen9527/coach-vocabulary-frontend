@@ -7,18 +7,36 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "credentialsSource": "local"
+      },
+      "android": {
+        "credentialsSource": "remote"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://coach-vocab-api-dmui4j7mda-de.a.run.app"
       }
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "credentialsSource": "local"
+      },
+      "android": {
+        "credentialsSource": "remote"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://coach-vocab-api-dmui4j7mda-de.a.run.app"
       }
     },
     "production": {
       "autoIncrement": true,
+      "ios": {
+        "credentialsSource": "local"
+      },
+      "android": {
+        "credentialsSource": "remote"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://coach-vocab-api-dmui4j7mda-de.a.run.app"
       }

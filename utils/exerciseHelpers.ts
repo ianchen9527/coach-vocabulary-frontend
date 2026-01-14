@@ -1,3 +1,5 @@
+import { doubleMetaphone } from 'double-metaphone';
+
 /**
  * Get exercise category from type
  */
@@ -37,10 +39,40 @@ export function getPoolLabel(pool: string, type: "practice" | "review" = "practi
 }
 
 /**
- * Check if speaking answer is correct using contains matching
+ * Check if speaking answer is correct
+ * 1. First tries exact match (includes)
+ * 2. If no exact match, tries phonetic matching using Double Metaphone
  */
 export function checkSpeakingAnswer(transcript: string, correctWord: string): boolean {
   const normalizedTranscript = transcript.toLowerCase().trim();
   const normalizedCorrect = correctWord.toLowerCase().trim();
-  return normalizedTranscript.includes(normalizedCorrect);
+
+  // 1. Exact match: transcript contains the correct word
+  if (normalizedTranscript.includes(normalizedCorrect)) {
+    return true;
+  }
+
+  // 2. Phonetic match: check if any word in transcript sounds like the correct word
+  const [correctPrimary, correctAlt] = doubleMetaphone(normalizedCorrect);
+  const words = normalizedTranscript.split(/\s+/);
+
+  for (const word of words) {
+    // Remove punctuation (e.g., "who's" -> "whos")
+    const cleanWord = word.replace(/[^a-z]/g, '');
+    if (!cleanWord) continue;
+
+    const [wordPrimary, wordAlt] = doubleMetaphone(cleanWord);
+
+    // Match if any combination matches
+    if (
+      wordPrimary === correctPrimary ||
+      wordPrimary === correctAlt ||
+      wordAlt === correctPrimary ||
+      wordAlt === correctAlt
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
