@@ -291,7 +291,7 @@ export default function LearnScreen() {
                   selectedIndex={exerciseFlow.selectedIndex}
                   correctIndex={currentExercise.correct_index}
                   showResult={true}
-                  onSelect={() => {}}
+                  onSelect={() => { }}
                   disabled={true}
                   layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
                   showImage={currentExercise.type === "reading_lv1"}
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   exerciseWordText: {
-    fontSize: 24,
+    fontSize: 36,
     fontWeight: "bold",
     color: colors.foreground,
     marginBottom: 8,

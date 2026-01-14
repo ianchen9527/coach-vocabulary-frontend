@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   exerciseWordText: {
-    fontSize: 24,
+    fontSize: 36,
     fontWeight: "bold",
     color: colors.foreground,
     marginBottom: 8,

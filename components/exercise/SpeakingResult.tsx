@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Check, X } from "lucide-react-native";
 import { colors } from "../../lib/tw";
+import { DEBUG_MODE } from "../../lib/config";
 
 interface SpeakingResultProps {
   isCorrect: boolean;
@@ -29,8 +30,8 @@ export function SpeakingResult({
         )}
       </View>
 
-      {/* 你說的內容 */}
-      {recognizedText && (
+      {/* 你說的內容（僅 debug 模式顯示） */}
+      {DEBUG_MODE && recognizedText && (
         <View style={styles.transcriptBox}>
           <Text style={styles.transcriptLabel}>你說：</Text>
           <Text style={styles.transcriptText}>"{recognizedText}"</Text>

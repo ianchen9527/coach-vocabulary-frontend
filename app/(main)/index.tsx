@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { colors } from "../../lib/tw";
+import { DEBUG_MODE } from "../../lib/config";
 import { notificationService } from "../../services/notificationService";
 
 type ActionType = "review" | "practice" | "learn" | null;
@@ -307,25 +308,27 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 測試工具區 */}
-          <View style={styles.devToolsContainer}>
-            <Text style={styles.devToolsTitle}>測試工具</Text>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={handleResetCooldown}
-              disabled={isResetting}
-              activeOpacity={0.8}
-            >
-              {isResetting ? (
-                <ActivityIndicator size="small" color={colors.destructiveForeground} />
-              ) : (
-                <Zap size={18} color={colors.destructiveForeground} />
-              )}
-              <Text style={styles.resetButtonText}>
-                {isResetting ? "重置中..." : "重置冷卻時間"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* 測試工具區（僅 debug 模式顯示） */}
+          {DEBUG_MODE && (
+            <View style={styles.devToolsContainer}>
+              <Text style={styles.devToolsTitle}>測試工具</Text>
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={handleResetCooldown}
+                disabled={isResetting}
+                activeOpacity={0.8}
+              >
+                {isResetting ? (
+                  <ActivityIndicator size="small" color={colors.destructiveForeground} />
+                ) : (
+                  <Zap size={18} color={colors.destructiveForeground} />
+                )}
+                <Text style={styles.resetButtonText}>
+                  {isResetting ? "重置中..." : "重置冷卻時間"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

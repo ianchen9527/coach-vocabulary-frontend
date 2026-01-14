@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
 
   // Reading exercise
   readingWord: {
-    fontSize: 30,
+    fontSize: 36,
     fontWeight: "bold",
     color: colors.foreground,
     marginBottom: 8,
