@@ -105,7 +105,7 @@ export default function ReviewScreen() {
       if (currentExercise.type.startsWith("speaking")) {
         // 口說題：根據辨識結果判斷
         correct = recognizedText.trim() !== "" &&
-                  checkSpeakingAnswer(recognizedText, currentWord.word);
+          checkSpeakingAnswer(recognizedText, currentWord.word);
         // user_answer：使用 recognizedText（包含超時時的 interim transcript）
         userAnswer = recognizedText.trim() || undefined;
       } else {
@@ -361,10 +361,6 @@ export default function ReviewScreen() {
           <View style={styles.displayContainer}>
             {/* 倒數計時 */}
             <CountdownText remainingMs={displayRemainingMs} />
-
-            {/* Pool 標籤 */}
-            <PoolBadge pool={currentWord.pool} type="review" />
-
             {currentWord.image_url && (
               <Image
                 source={{ uri: getAssetUrl(currentWord.image_url) || undefined }}
@@ -394,8 +390,6 @@ export default function ReviewScreen() {
         {/* 答題階段 */}
         {pagePhase === "exercising" && currentExercise && currentWord && (
           <View style={styles.exerciseContainer}>
-            {/* Pool 標籤 */}
-            <PoolBadge pool={currentWord.pool} type="review" />
 
             {/* 題目階段：顯示單字，倒數計時 */}
             {exerciseFlow.phase === "question" && (
@@ -517,7 +511,7 @@ export default function ReviewScreen() {
                       selectedIndex={exerciseFlow.selectedIndex}
                       correctIndex={currentExercise.correct_index}
                       showResult={true}
-                      onSelect={() => {}}
+                      onSelect={() => { }}
                       disabled={true}
                       layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
                       showImage={currentExercise.type === "reading_lv1"}

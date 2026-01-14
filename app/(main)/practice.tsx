@@ -110,7 +110,7 @@ export default function PracticeScreen() {
       if (currentExercise.type.startsWith("speaking")) {
         // 口說題：根據辨識結果判斷
         correct = recognizedText.trim() !== "" &&
-                  checkSpeakingAnswer(recognizedText, currentExercise.word);
+          checkSpeakingAnswer(recognizedText, currentExercise.word);
         // user_answer：使用 recognizedText（包含超時時的 interim transcript）
         userAnswer = recognizedText.trim() || undefined;
       } else {
@@ -368,8 +368,6 @@ export default function PracticeScreen() {
       <View style={[styles.contentContainer, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
         {currentExercise && (
           <View style={styles.exerciseContainer}>
-            {/* Pool 標籤 */}
-            <PoolBadge pool={currentExercise.pool} />
 
             {/* 閱讀/聽力/口說練習 - 使用 exerciseFlow */}
             {pagePhase === "exercising" && (
@@ -494,7 +492,7 @@ export default function PracticeScreen() {
                           selectedIndex={exerciseFlow.selectedIndex}
                           correctIndex={currentExercise.correct_index}
                           showResult={true}
-                          onSelect={() => {}}
+                          onSelect={() => { }}
                           disabled={true}
                           layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
                           showImage={currentExercise.type === "reading_lv1"}
