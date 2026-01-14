@@ -426,7 +426,7 @@ export default function ReviewScreen() {
                 )}
                 {currentExercise.type.startsWith("speaking") && (
                   <>
-                    {currentWord.image_url && (
+                    {currentExercise.type === "speaking_lv1" && currentWord.image_url && (
                       <Image
                         source={{ uri: getAssetUrl(currentWord.image_url) || undefined }}
                         style={styles.speakingImage}

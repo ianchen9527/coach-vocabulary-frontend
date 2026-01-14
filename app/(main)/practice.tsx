@@ -403,7 +403,7 @@ export default function PracticeScreen() {
                     )}
                     {currentExercise.type.startsWith("speaking") && (
                       <>
-                        {currentExercise.image_url && (
+                        {currentExercise.type === "speaking_lv1" && currentExercise.image_url && (
                           <Image
                             source={{ uri: getAssetUrl(currentExercise.image_url) || undefined }}
                             style={styles.speakingImage}

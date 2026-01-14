@@ -20,7 +20,7 @@
         "NSMicrophoneUsageDescription": "允許 $(PRODUCT_NAME) 使用麥克風以進行語音辨識練習。",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.anonymous.coach-vocabulary-frontend"
+      "bundleIdentifier": "com.amazingtalker.aicoach"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +31,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.coachvocabularyfrontend"
+      "package": "com.amazingtalker.aicoach"
     },
     "web": {
       "favicon": "./assets/favicon.png",
