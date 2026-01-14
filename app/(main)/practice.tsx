@@ -155,11 +155,25 @@ export default function PracticeScreen() {
           ]);
           return;
         }
-        setSession(data);
+
+        // 依照練習種類排序（reading → listening → speaking）
+        // lv1 和 lv2 視為相同種類
+        const categoryOrder: Record<string, number> = {
+          reading: 0,
+          listening: 1,
+          speaking: 2,
+        };
+        const sortedExercises = [...data.exercises].sort((a, b) => {
+          const categoryA = getExerciseCategory(a.type);
+          const categoryB = getExerciseCategory(b.type);
+          return (categoryOrder[categoryA] ?? 99) - (categoryOrder[categoryB] ?? 99);
+        });
+
+        setSession({ ...data, exercises: sortedExercises });
 
         // 檢查第一個題型
-        if (data.exercises.length > 0) {
-          setCurrentExerciseType(getExerciseCategory(data.exercises[0].type));
+        if (sortedExercises.length > 0) {
+          setCurrentExerciseType(getExerciseCategory(sortedExercises[0].type));
           setPagePhase("intro");
         }
       } catch (error) {

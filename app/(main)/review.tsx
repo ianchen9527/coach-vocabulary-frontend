@@ -29,9 +29,13 @@ import {
   SpeakingResult,
 } from "../../components/exercise";
 import { useExerciseFlow } from "../../hooks/useExerciseFlow";
-import { checkSpeakingAnswer } from "../../utils/exerciseHelpers";
+import {
+  getExerciseCategory,
+  getExerciseTitle,
+  checkSpeakingAnswer,
+} from "../../utils/exerciseHelpers";
 
-type PagePhase = "loading" | "display" | "exercising" | "complete";
+type PagePhase = "loading" | "intro" | "display" | "exercising" | "complete";
 
 const DISPLAY_DURATION = 3000; // 展示階段 3 秒
 const COUNTDOWN_INTERVAL = 50; // 更新間隔 50ms
@@ -57,6 +61,7 @@ export default function ReviewScreen() {
   const [pagePhase, setPagePhase] = useState<PagePhase>("loading");
   const [answers, setAnswers] = useState<AnswerSchema[]>([]);
   const [displayRemainingMs, setDisplayRemainingMs] = useState(DISPLAY_DURATION);
+  const [currentExerciseType, setCurrentExerciseType] = useState<string>("");
 
   // 口說練習專用狀態
   const [recognizedText, setRecognizedText] = useState("");
@@ -86,8 +91,18 @@ export default function ReviewScreen() {
     speechRecognition.reset();
 
     if (currentIndex < totalWords - 1) {
+      const nextExercise = exercises[currentIndex + 1];
+      const nextCategory = getExerciseCategory(nextExercise.type);
+
       setCurrentIndex((prev) => prev + 1);
-      setPagePhase("display");
+
+      // 檢查是否切換到不同類型的練習
+      if (nextCategory !== currentExerciseType) {
+        setCurrentExerciseType(nextCategory);
+        setPagePhase("intro");
+      } else {
+        setPagePhase("display");
+      }
       exerciseFlow.reset();
     } else {
       completeSession();
@@ -148,8 +163,31 @@ export default function ReviewScreen() {
           ]);
           return;
         }
-        setSession(data);
-        setPagePhase("display");
+
+        // 依照練習種類排序（reading → listening → speaking）
+        const categoryOrder: Record<string, number> = {
+          reading: 0,
+          listening: 1,
+          speaking: 2,
+        };
+        const sortedExercises = [...data.exercises].sort((a, b) => {
+          const categoryA = getExerciseCategory(a.type);
+          const categoryB = getExerciseCategory(b.type);
+          return (categoryOrder[categoryA] ?? 99) - (categoryOrder[categoryB] ?? 99);
+        });
+
+        // 同時排序 words（保持與 exercises 對應）
+        const sortedWords = sortedExercises.map(exercise =>
+          data.words.find(w => w.id === exercise.word_id)!
+        );
+
+        setSession({ ...data, words: sortedWords, exercises: sortedExercises });
+
+        // 設定第一個練習類型並顯示 intro
+        if (sortedExercises.length > 0) {
+          setCurrentExerciseType(getExerciseCategory(sortedExercises[0].type));
+          setPagePhase("intro");
+        }
       } catch (error) {
         Alert.alert("載入失敗", handleApiError(error), [
           { text: "返回", onPress: () => router.back() },
@@ -304,6 +342,11 @@ export default function ReviewScreen() {
     }
   }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord, isRecording]);
 
+  // 從 intro 進入 display
+  const startFromIntro = () => {
+    setPagePhase("display");
+  };
+
   // 進入答題階段
   const goToExercise = () => {
     setPagePhase("exercising");
@@ -350,6 +393,27 @@ export default function ReviewScreen() {
         subtitle={`答對 ${correctCount} / ${totalWords} 題`}
         onBack={() => router.replace("/(main)")}
       />
+    );
+  }
+
+  if (pagePhase === "intro") {
+    return (
+      <SafeAreaView style={styles.introContainer}>
+        <Text style={styles.introTitle}>
+          {getExerciseTitle(currentExerciseType, "review")}
+        </Text>
+        <Text style={styles.introSubtitle}>
+          先複習單字，再進行測驗
+        </Text>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={startFromIntro}
+        >
+          <Text style={styles.primaryButtonText}>
+            開始
+          </Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     );
   }
 
@@ -557,6 +621,27 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Intro screen
+  introContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  introTitle: {
+    fontSize: 30,
+    fontWeight: "bold",
+    color: colors.foreground,
+    marginBottom: 16,
+  },
+  introSubtitle: {
+    fontSize: 18,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    marginBottom: 32,
+  },
+
   // Main container
   container: {
     flex: 1,

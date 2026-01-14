@@ -12,16 +12,17 @@ export function getExerciseCategory(type: string): string {
 /**
  * Get exercise title from category
  */
-export function getExerciseTitle(category: string): string {
+export function getExerciseTitle(category: string, mode: "practice" | "review" = "practice"): string {
+  const suffix = mode === "review" ? "複習" : "練習";
   switch (category) {
     case "reading":
-      return "閱讀練習";
+      return `閱讀${suffix}`;
     case "listening":
-      return "聽力練習";
+      return `聽力${suffix}`;
     case "speaking":
-      return "口說練習";
+      return `口說${suffix}`;
     default:
-      return "練習";
+      return suffix;
   }
 }
 
