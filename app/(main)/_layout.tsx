@@ -1,18 +1,9 @@
 import { Stack } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
 import { Redirect } from "expo-router";
-import { useEffect } from "react";
-import { notificationService } from "../../services/notificationService";
 
 export default function MainLayout() {
   const { isAuthenticated, isLoading } = useAuth();
-
-  // 請求通知權限
-  useEffect(() => {
-    if (isAuthenticated) {
-      notificationService.requestPermissions();
-    }
-  }, [isAuthenticated]);
 
   // 如果正在載入，不做任何重定向
   if (isLoading) {

@@ -1,6 +1,19 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+// Platforms where notifications are disabled
+const DISABLED_PLATFORMS: string[] = ["web"];
+
+// If iOS needs to be disabled, app.json needs to be updated with 
+// "ios": {
+//   "entitlements": {
+//     "aps-environment": false
+//   }
+// }
+// const DISABLED_PLATFORMS: string[] = ["web", "ios"];
+
+const isNotificationDisabled = () => DISABLED_PLATFORMS.includes(Platform.OS);
+
 // 設定通知處理方式（當 App 在前台時）
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -17,8 +30,8 @@ export const notificationService = {
      * 請求推播通知權限
      */
     async requestPermissions() {
-        if (Platform.OS === "web") {
-            console.log("[Web] Notification permissions are always granted or handled by browser.");
+        if (isNotificationDisabled()) {
+            console.log(`[${Platform.OS}] Notifications disabled for this platform.`);
             return false;
         }
 
@@ -42,6 +55,10 @@ export const notificationService = {
      * @param nextAvailableTime ISO 時間字串
      */
     async scheduleNextSessionNotification(nextAvailableTime: string | null) {
+        if (isNotificationDisabled()) {
+            return;
+        }
+
         if (!nextAvailableTime) {
             await this.cancelAllNotifications();
             return;
@@ -61,24 +78,18 @@ export const notificationService = {
 
         // 2. 預約新的通知
         try {
-            if (Platform.OS === "web") {
-                console.log(`[Web] Notification would be scheduled for: ${new Date(triggerDate).toLocaleString()}`);
-                return;
-            } else {
-
-                await Notifications.scheduleNotificationAsync({
-                    content: {
-                        title: "單字教練提醒",
-                        body: "新的學習任務已經準備好了，趕快回來練習吧！",
-                        data: { url: "/(main)" },
-                    },
-                    trigger: {
-                        type: Notifications.SchedulableTriggerInputTypes.DATE,
-                        date: triggerDate,
-                    },
-                });
-                console.log(`Notification scheduled for: ${triggerDate.toLocaleString()}`);
-            }
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: "單字教練提醒",
+                    body: "新的學習任務已經準備好了，趕快回來練習吧！",
+                    data: { url: "/(main)" },
+                },
+                trigger: {
+                    type: Notifications.SchedulableTriggerInputTypes.DATE,
+                    date: triggerDate,
+                },
+            });
+            console.log(`Notification scheduled for: ${triggerDate.toLocaleString()}`);
         } catch (error) {
             console.error("Failed to schedule notification:", error);
         }
@@ -88,8 +99,7 @@ export const notificationService = {
      * 取消所有已預約的通知
      */
     async cancelAllNotifications() {
-        if (Platform.OS === "web") {
-            console.log("[Web] All notifications would be cancelled.");
+        if (isNotificationDisabled()) {
             return;
         }
         await Notifications.cancelAllScheduledNotificationsAsync();

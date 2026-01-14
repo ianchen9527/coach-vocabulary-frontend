@@ -9,6 +9,12 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
 export const STORAGE_KEYS = {
   ACCESS_TOKEN: "accessToken",
   USER: "user",
+  // Microphone permission tracking
+  MIC_PERMISSION_DISMISSED_AT: "micPermissionDismissedAt",
+  MIC_PERMISSION_GRANTED: "micPermissionGranted",
+  // Notification permission tracking
+  NOTIFICATION_PERMISSION_DISMISSED_AT: "notificationPermissionDismissedAt",
+  NOTIFICATION_PERMISSION_GRANTED: "notificationPermissionGranted",
 } as const;
 
 // 建立 Axios 實例

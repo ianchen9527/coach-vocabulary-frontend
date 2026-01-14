@@ -25,10 +25,14 @@ import {
   LogOut,
   Play,
   Zap,
+  Mic,
+  Bell,
 } from "lucide-react-native";
 import { colors } from "../../lib/tw";
 import { DEBUG_MODE } from "../../lib/config";
 import { notificationService } from "../../services/notificationService";
+import { permissionService } from "../../services/permissionService";
+import { PermissionModal } from "../../components/ui/PermissionModal";
 
 type ActionType = "review" | "practice" | "learn" | null;
 
@@ -37,6 +41,8 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [showMicModal, setShowMicModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { user, logout } = useAuth();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -44,6 +50,69 @@ export default function HomeScreen() {
   // 寬螢幕時使用較窄的內容寬度
   const isWideScreen = width > 600;
   const contentMaxWidth = isWideScreen ? 480 : undefined;
+
+  // 檢查是否需要顯示權限提示
+  useEffect(() => {
+    const checkPermissions = async () => {
+      // Check microphone first
+      const shouldShowMic =
+        await permissionService.shouldShowMicPermissionPrompt();
+      if (shouldShowMic) {
+        setShowMicModal(true);
+        return; // Show one at a time
+      }
+
+      // Then check notifications
+      const shouldShowNotif =
+        await permissionService.shouldShowNotificationPermissionPrompt();
+      if (shouldShowNotif) {
+        setShowNotificationModal(true);
+      }
+    };
+    checkPermissions();
+  }, []);
+
+  // 麥克風權限 Modal 處理
+  const handleMicModalAllow = async () => {
+    const granted = await permissionService.requestMicPermission();
+    if (granted) {
+      await permissionService.recordMicPermissionGranted();
+    }
+    setShowMicModal(false);
+
+    // Check if we should show notification modal next
+    const shouldShowNotif =
+      await permissionService.shouldShowNotificationPermissionPrompt();
+    if (shouldShowNotif) {
+      setShowNotificationModal(true);
+    }
+  };
+
+  const handleMicModalDismiss = async () => {
+    await permissionService.recordMicPermissionDismissal();
+    setShowMicModal(false);
+
+    // Still check notification modal
+    const shouldShowNotif =
+      await permissionService.shouldShowNotificationPermissionPrompt();
+    if (shouldShowNotif) {
+      setShowNotificationModal(true);
+    }
+  };
+
+  // 通知權限 Modal 處理
+  const handleNotificationModalAllow = async () => {
+    const granted = await permissionService.requestNotificationPermission();
+    if (granted) {
+      await permissionService.recordNotificationPermissionGranted();
+    }
+    setShowNotificationModal(false);
+  };
+
+  const handleNotificationModalDismiss = async () => {
+    await permissionService.recordNotificationPermissionDismissal();
+    setShowNotificationModal(false);
+  };
 
   const fetchStats = useCallback(async () => {
     try {
@@ -331,6 +400,28 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* 語音權限 Modal */}
+      <PermissionModal
+        visible={showMicModal}
+        icon={<Mic size={40} color={colors.primary} />}
+        title="開啟語音權限"
+        description="為了讓你練習口說發音，我們需要使用麥克風與語音辨識功能來聆聽並即時比對你說的單字是否正確。"
+        benefit="這能幫助你更有效地練習英文口說！"
+        onAllow={handleMicModalAllow}
+        onDismiss={handleMicModalDismiss}
+      />
+
+      {/* 通知權限 Modal */}
+      <PermissionModal
+        visible={showNotificationModal}
+        icon={<Bell size={40} color={colors.primary} />}
+        title="開啟通知權限"
+        description="開啟通知讓我們在你的學習任務準備好時提醒你。"
+        benefit="根據科學記憶法，在最佳時間複習能大幅提升記憶效果，別錯過最佳學習時機！"
+        onAllow={handleNotificationModalAllow}
+        onDismiss={handleNotificationModalDismiss}
+      />
     </SafeAreaView>
   );
 }
