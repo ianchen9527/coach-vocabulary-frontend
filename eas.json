@@ -39,7 +39,7 @@
         "credentialsSource": "remote"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://coach-vocab-api-dmui4j7mda-de.a.run.app",
+        "EXPO_PUBLIC_API_URL": "https://coach-vocab-api-prod-1068204580938.asia-east1.run.app",
         "EXPO_PUBLIC_DEBUG_MODE": "false"
       }
     }
@@ -48,6 +48,9 @@
     "production": {
       "ios": {
         "ascAppId": "6757837194"
+      },
+      "android": {
+        "track": "internal"
       }
     }
   }
