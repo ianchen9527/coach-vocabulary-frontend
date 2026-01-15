@@ -31,20 +31,18 @@ export function SpeakingResult({
       </View>
 
       {/* 你說的內容（僅 debug 模式顯示） */}
-      {DEBUG_MODE && recognizedText && (
+      {DEBUG_MODE && (
         <View style={styles.transcriptBox}>
           <Text style={styles.transcriptLabel}>你說：</Text>
           <Text style={styles.transcriptText}>"{recognizedText}"</Text>
         </View>
       )}
 
-      {/* 正確答案（如果答錯） */}
-      {!isCorrect && (
-        <View style={styles.correctAnswerBox}>
-          <Text style={styles.correctAnswerLabel}>正確答案：</Text>
-          <Text style={styles.correctAnswerText}>{correctAnswer}</Text>
-        </View>
-      )}
+      {/* 正確答案 */}
+      <View style={styles.correctAnswerBox}>
+        <Text style={styles.correctAnswerLabel}>正確答案：</Text>
+        <Text style={styles.correctAnswerText}>{correctAnswer}</Text>
+      </View>
     </>
   );
 }

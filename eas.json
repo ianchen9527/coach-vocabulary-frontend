@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       },
       "android": {
         "credentialsSource": "remote"
@@ -20,7 +20,7 @@
     "preview": {
       "distribution": "internal",
       "ios": {
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       },
       "android": {
         "credentialsSource": "remote"
@@ -33,7 +33,7 @@
     "production": {
       "autoIncrement": true,
       "ios": {
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       },
       "android": {
         "credentialsSource": "remote"
