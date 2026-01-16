@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "One English",
+    "name": "Attain",
     "slug": "coach-vocabulary-frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "one-english",
+    "scheme": "attain",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {

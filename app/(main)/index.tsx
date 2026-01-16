@@ -333,7 +333,7 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.headerTitle}>
-                One English
+                Attain
               </Text>
               <Text style={styles.headerSubtitle}>
                 歡迎回來，{user?.username}

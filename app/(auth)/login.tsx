@@ -144,7 +144,7 @@ export default function LoginScreen() {
               <View style={styles.logoCircle}>
                 <BookOpen size={48} color={colors.primary} />
               </View>
-              <Text style={styles.title}>One English</Text>
+              <Text style={styles.title}>Attain</Text>
               <Text style={styles.subtitle}>高效記憶英語單字</Text>
             </View>
 
