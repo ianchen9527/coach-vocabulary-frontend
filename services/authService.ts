@@ -4,6 +4,8 @@ import type {
   LoginRequest,
   AuthResponse,
   UserInfo,
+  DeleteAccountRequest,
+  DeleteAccountResponse,
 } from "../types/api";
 
 export const authService = {
@@ -42,6 +44,19 @@ export const authService = {
    */
   async getMe(): Promise<UserInfo> {
     const response = await api.get<UserInfo>("/api/auth/me");
+    return response.data;
+  },
+
+  /**
+   * 刪除用戶帳號
+   * @param email 用戶電子郵件（用於確認）
+   * @returns 刪除結果
+   */
+  async deleteAccount(email: string): Promise<DeleteAccountResponse> {
+    const request: DeleteAccountRequest = { email };
+    const response = await api.delete<DeleteAccountResponse>("/api/auth/me", {
+      data: request,
+    });
     return response.data;
   },
 };

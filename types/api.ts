@@ -24,6 +24,16 @@ export interface UserInfo {
   username: string;
 }
 
+export interface DeleteAccountRequest {
+  email: string;
+}
+
+export interface DeleteAccountResponse {
+  success: boolean;
+  message: string;
+  deleted_at: string;
+}
+
 // === Home ===
 export interface StatsResponse {
   today_learned: number;

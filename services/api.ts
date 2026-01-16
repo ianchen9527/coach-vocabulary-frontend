@@ -2,8 +2,8 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "ax
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // API Base URL - 可以透過環境變數覆蓋
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
-// const API_BASE_URL = "https://coach-vocab-api-dmui4j7mda-de.a.run.app";
+// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = "https://coach-vocab-api-dmui4j7mda-de.a.run.app";
 
 // AsyncStorage Keys
 export const STORAGE_KEYS = {

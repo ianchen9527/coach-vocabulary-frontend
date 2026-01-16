@@ -14,6 +14,7 @@ interface AuthContextType extends AuthState {
   register: (email: string, username: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,8 +124,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const deleteAccount = async (email: string) => {
+    try {
+      await authService.deleteAccount(email);
+      await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+      await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+
+      setState({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error("Delete account failed:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, register, login, logout }}>
+    <AuthContext.Provider value={{ ...state, register, login, logout, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

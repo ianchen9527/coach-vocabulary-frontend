@@ -27,12 +27,16 @@ import {
   Zap,
   Mic,
   Bell,
+  User,
+  Trash2,
 } from "lucide-react-native";
 import { colors } from "../../lib/tw";
 import { DEBUG_MODE } from "../../lib/config";
 import { notificationService } from "../../services/notificationService";
 import { permissionService } from "../../services/permissionService";
 import { PermissionModal } from "../../components/ui/PermissionModal";
+import { BottomSheet, BottomSheetItem } from "../../components/ui/BottomSheet";
+import { DeleteAccountModal } from "../../components/ui/DeleteAccountModal";
 
 type ActionType = "review" | "practice" | "learn" | null;
 
@@ -43,7 +47,10 @@ export default function HomeScreen() {
   const [isResetting, setIsResetting] = useState(false);
   const [showMicModal, setShowMicModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const { user, logout } = useAuth();
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { user, logout, deleteAccount } = useAuth();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
@@ -227,6 +234,7 @@ export default function HomeScreen() {
   };
 
   const handleLogout = () => {
+    setShowBottomSheet(false);
     Alert.alert("登出", "確定要登出嗎？", [
       { text: "取消", style: "cancel" },
       {
@@ -238,6 +246,43 @@ export default function HomeScreen() {
         },
       },
     ]);
+  };
+
+  const handleDeleteAccountPress = () => {
+    setShowBottomSheet(false);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteModalCancel = () => {
+    setShowDeleteModal(false);
+  };
+
+  const handleDeleteModalConfirm = () => {
+    setShowDeleteModal(false);
+    Alert.alert(
+      "確認刪除？",
+      "刪除後無法復原，確定要刪除帳號嗎？",
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "確認刪除",
+          style: "destructive",
+          onPress: async () => {
+            if (!user?.email) return;
+            setIsDeleting(true);
+            try {
+              await deleteAccount(user.email);
+              router.replace("/(auth)/login");
+            } catch (error) {
+              const message = handleApiError(error);
+              Alert.alert("刪除失敗", message);
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatNextAvailableTime = (isoString: string | null): string => {
@@ -295,10 +340,10 @@ export default function HomeScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              onPress={handleLogout}
-              style={styles.logoutButton}
+              onPress={() => setShowBottomSheet(true)}
+              style={styles.profileButton}
             >
-              <LogOut size={20} color={colors.mutedForeground} />
+              <User size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
@@ -422,6 +467,33 @@ export default function HomeScreen() {
         onAllow={handleNotificationModalAllow}
         onDismiss={handleNotificationModalDismiss}
       />
+
+      {/* 帳號選單 Bottom Sheet */}
+      <BottomSheet
+        visible={showBottomSheet}
+        onClose={() => setShowBottomSheet(false)}
+      >
+        <BottomSheetItem
+          icon={<LogOut size={22} />}
+          label="登出"
+          onPress={handleLogout}
+        />
+        <BottomSheetItem
+          icon={<Trash2 size={22} />}
+          label="刪除帳號"
+          onPress={handleDeleteAccountPress}
+          variant="destructive"
+        />
+      </BottomSheet>
+
+      {/* 刪除帳號確認 Modal */}
+      <DeleteAccountModal
+        visible={showDeleteModal}
+        userEmail={user?.email || ""}
+        onCancel={handleDeleteModalCancel}
+        onConfirm={handleDeleteModalConfirm}
+        isLoading={isDeleting}
+      />
     </SafeAreaView>
   );
 }
@@ -466,7 +538,7 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     marginTop: 4,
   },
-  logoutButton: {
+  profileButton: {
     width: 40,
     height: 40,
     borderRadius: 9999,
