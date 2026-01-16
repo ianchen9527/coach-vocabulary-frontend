@@ -477,12 +477,12 @@ export default function HomeScreen() {
           icon={<LogOut size={22} />}
           label="登出"
           onPress={handleLogout}
+          variant="destructive"
         />
         <BottomSheetItem
           icon={<Trash2 size={22} />}
           label="刪除帳號"
           onPress={handleDeleteAccountPress}
-          variant="destructive"
         />
       </BottomSheet>
 
