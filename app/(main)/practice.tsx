@@ -35,6 +35,7 @@ import {
   checkSpeakingAnswer,
 } from "../../utils/exerciseHelpers";
 
+
 // 頁面階段：loading | intro | exercising | speaking | complete
 // exercising = 使用 hook 管理的答題流程（閱讀/聽力題）
 // speaking = 口說題（手動確認）
