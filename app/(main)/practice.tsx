@@ -68,7 +68,6 @@ export default function PracticeScreen() {
   const [recognizedText, setRecognizedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isPreparingRecording, setIsPreparingRecording] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [speakingCorrect, setSpeakingCorrect] = useState(false);
 
   const exercises = session?.exercises || [];
@@ -219,7 +218,10 @@ export default function PracticeScreen() {
     if (success) {
       setIsRecording(true);
       // 錄音準備好後，手動開始 options 倒數
-      exerciseFlow.startOptionsCountdown();
+      // 使用自訂回調：超時時進入 processing 階段而非直接進入 result
+      exerciseFlow.startOptionsCountdown(() => {
+        exerciseFlow.enterProcessing();
+      });
     } else {
       Alert.alert(
         "無法啟動",
@@ -246,7 +248,6 @@ export default function PracticeScreen() {
       };
     }
 
-    setIsVerifying(true);
     try {
       const whisperTranscript = await speechService.transcribe(
         audioData,
@@ -273,57 +274,51 @@ export default function PracticeScreen() {
         correct: checkSpeakingAnswer(nativeTranscript, correctWord),
         transcript: nativeTranscript,
       };
-    } finally {
-      setIsVerifying(false);
     }
   }, [speechRecognition.getAudioData]);
 
   // 處理口說結果（含 Whisper 後備）
+  // 此函數應在 "processing" 階段被呼叫
   const handleSpeakingResult = useCallback(async (
     transcript: string,
     wordId: string,
     correctWord: string
   ) => {
+    console.log("[Practice] handleSpeakingResult called", { transcript, wordId, correctWord });
+
     const nativeCorrect = transcript.trim() !== "" && checkSpeakingAnswer(transcript, correctWord);
+    console.log("[Practice] Native recognition result:", { nativeCorrect });
 
     if (nativeCorrect) {
-      // 原生辨識成功，直接使用
+      // 原生辨識成功，直接進入結果
+      console.log("[Practice] Native correct, entering result");
       setRecognizedText(transcript);
       setSpeakingCorrect(true);
-
-      // 如果已經在 result phase（從 timeout 進入），更新 index 並啟動計時器
-      if (exerciseFlow.phase === "result") {
-        exerciseFlow.updateSelectedIndex(0);
-        exerciseFlow.startResultTimeout();
-      } else {
-        exerciseFlow.select(0);
-      }
+      exerciseFlow.enterResult(0);
       return;
     }
 
     // 原生辨識失敗，嘗試 Whisper 後備
+    console.log("[Practice] Native failed, calling Whisper fallback...");
     const result = await tryWhisperFallback(transcript, wordId, correctWord);
+    console.log("[Practice] Whisper result:", result);
+
     setRecognizedText(result.transcript);
     setSpeakingCorrect(result.correct);
-
-    // 如果已經在 result phase（從 timeout 進入），更新 index 並啟動計時器
-    if (exerciseFlow.phase === "result") {
-      exerciseFlow.updateSelectedIndex(result.correct ? 0 : -1);
-      exerciseFlow.startResultTimeout();
-    } else {
-      exerciseFlow.select(result.correct ? 0 : -1);
-    }
+    exerciseFlow.enterResult(result.correct ? 0 : -1);
   }, [tryWhisperFallback, exerciseFlow]);
 
   const handleStopRecording = () => {
-    if (isRecording) {
-      // 先清除計時器，防止超時 callback 搶先執行
-      exerciseFlow.clearTimer();
+    console.log("[Practice] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
+    if (isRecording && exerciseFlow.phase === "options") {
+      // 進入 processing 階段（防止其他 effect 干擾）
+      exerciseFlow.enterProcessing();
 
       // 使用當前的 final 或 interim transcript（優先使用 final）
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
+      console.log("[Practice] Transcript:", transcript);
 
-      speechRecognition.abort(); // 使用 abort 而非 stop，避免觸發額外的 result 事件
+      speechRecognition.abort();
       setIsRecording(false);
 
       if (currentExercise) {
@@ -333,7 +328,7 @@ export default function PracticeScreen() {
           currentExercise.word
         );
       } else {
-        exerciseFlow.select(-1);
+        exerciseFlow.enterResult(-1);
       }
     }
   };
@@ -351,31 +346,27 @@ export default function PracticeScreen() {
     }
   }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, isPreparingRecording]);
 
-  // 口說題：超時時檢查是否有已辨識的內容
+  // 口說題：超時處理（進入 processing 階段但還在錄音中）
   useEffect(() => {
     if (
       pagePhase === "exercising" &&
-      exerciseFlow.phase === "result" &&
+      exerciseFlow.phase === "processing" &&
       currentExercise?.type.startsWith("speaking") &&
-      isRecording &&
-      !isVerifying // 防止重複呼叫（如果已經在驗證中，不要再觸發）
+      isRecording // 還在錄音中表示是超時進入的
     ) {
-      // 超時但還在錄音中，先清除 result timeout（因為需要等待 async 驗證）
-      exerciseFlow.clearTimer();
-
+      console.log("[Practice] Timeout detected in processing phase, stopping recording");
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
 
       speechRecognition.abort();
       setIsRecording(false);
 
-      // 使用 handleSpeakingResult 處理（含 Whisper 後備）
       handleSpeakingResult(
         transcript || "",
         currentExercise.word_id,
         currentExercise.word
       );
     }
-  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, isVerifying, speechRecognition.finalTranscript, speechRecognition.interimTranscript, handleSpeakingResult, exerciseFlow]);
+  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, speechRecognition.finalTranscript, speechRecognition.interimTranscript, handleSpeakingResult]);
 
   // 監聽辨識完成並自動提交答案
   // isRecording 確保是「這一題」的錄音結果，避免用上一題的 finalTranscript 判斷
@@ -387,18 +378,22 @@ export default function PracticeScreen() {
       exerciseFlow.phase === "options" &&
       isRecording
     ) {
-      // 先停止辨識，避免 continuous 模式下連線持續佔用
+      console.log("[Practice] Final transcript received, entering processing");
+      // 進入 processing 階段
+      exerciseFlow.enterProcessing();
+
+      // 停止辨識
       speechRecognition.abort();
       setIsRecording(false);
 
-      // 使用 handleSpeakingResult 處理（含 Whisper 後備）
+      // 處理結果
       handleSpeakingResult(
         speechRecognition.finalTranscript,
         currentExercise.word_id,
         currentExercise.word
       );
     }
-  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, isRecording, handleSpeakingResult]);
+  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, isRecording, handleSpeakingResult, exerciseFlow]);
 
   // 開始練習（從 intro 進入）
   const startExercise = () => {
@@ -608,6 +603,16 @@ export default function PracticeScreen() {
                   </>
                 )}
 
+                {/* 處理階段（口說題驗證中） */}
+                {exerciseFlow.phase === "processing" && currentExercise.type.startsWith("speaking") && (
+                  <SpeakingResult
+                    isCorrect={false}
+                    recognizedText=""
+                    correctAnswer={currentExercise.word}
+                    isVerifying={true}
+                  />
+                )}
+
                 {/* 結果階段 */}
                 {exerciseFlow.phase === "result" && (
                   <>
@@ -616,7 +621,7 @@ export default function PracticeScreen() {
                         isCorrect={speakingCorrect}
                         recognizedText={recognizedText}
                         correctAnswer={currentExercise.word}
-                        isVerifying={isVerifying}
+                        isVerifying={false}
                       />
                     ) : (
                       <>
