@@ -312,15 +312,15 @@ export default function ReviewScreen() {
     wordId: string,
     correctWord: string
   ) => {
-    console.log("[Review] handleSpeakingResult called", { transcript, wordId, correctWord });
+    // console.log("[Review] handleSpeakingResult called", { transcript, wordId, correctWord });
 
     const trimmedTranscript = transcript.trim();
     const nativeCorrect = trimmedTranscript !== "" && checkSpeakingAnswer(trimmedTranscript, correctWord);
-    console.log("[Review] Native recognition result:", { nativeCorrect, hasTranscript: trimmedTranscript !== "" });
+    // console.log("[Review] Native recognition result:", { nativeCorrect, hasTranscript: trimmedTranscript !== "" });
 
     if (nativeCorrect) {
       // 原生辨識成功，直接進入結果
-      console.log("[Review] Native correct, entering result");
+      // console.log("[Review] Native correct, entering result");
       setRecognizedText(transcript);
       setSpeakingCorrect(true);
       exerciseFlow.enterResult(0);
@@ -329,7 +329,7 @@ export default function ReviewScreen() {
 
     // 原生辨識有結果但不正確，直接標記為錯誤（不呼叫 Whisper）
     if (trimmedTranscript !== "") {
-      console.log("[Review] Native detected speech but incorrect, skipping Whisper");
+      // console.log("[Review] Native detected speech but incorrect, skipping Whisper");
       setRecognizedText(transcript);
       setSpeakingCorrect(false);
       exerciseFlow.enterResult(-1);
@@ -337,9 +337,9 @@ export default function ReviewScreen() {
     }
 
     // 原生辨識無結果，嘗試 Whisper 後備
-    console.log("[Review] Native detected nothing, calling Whisper fallback...");
+    // console.log("[Review] Native detected nothing, calling Whisper fallback...");
     const result = await tryWhisperFallback(transcript, wordId, correctWord);
-    console.log("[Review] Whisper result:", result);
+    // console.log("[Review] Whisper result:", result);
 
     setRecognizedText(result.transcript);
     setSpeakingCorrect(result.correct);
@@ -347,14 +347,14 @@ export default function ReviewScreen() {
   }, [tryWhisperFallback, exerciseFlow]);
 
   const handleStopRecording = () => {
-    console.log("[Review] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
+    // console.log("[Review] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
     if (isRecording && exerciseFlow.phase === "options") {
       // 進入 processing 階段（防止其他 effect 干擾）
       exerciseFlow.enterProcessing();
 
       // 使用當前的 final 或 interim transcript（優先使用 final）
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
-      console.log("[Review] Transcript:", transcript);
+      // console.log("[Review] Transcript:", transcript);
 
       speechRecognition.abort();
       setIsRecording(false);
@@ -404,7 +404,7 @@ export default function ReviewScreen() {
       currentExercise?.type.startsWith("speaking") &&
       isRecording // 還在錄音中表示是超時進入的
     ) {
-      console.log("[Review] Timeout detected in processing phase, stopping recording");
+      // console.log("[Review] Timeout detected in processing phase, stopping recording");
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
 
       speechRecognition.abort();
@@ -431,7 +431,7 @@ export default function ReviewScreen() {
       currentWord &&
       isRecording
     ) {
-      console.log("[Review] Final transcript received, entering processing");
+      // console.log("[Review] Final transcript received, entering processing");
       // 進入 processing 階段
       exerciseFlow.enterProcessing();
 

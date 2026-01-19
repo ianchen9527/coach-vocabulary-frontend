@@ -29,13 +29,13 @@ export const speechService = {
   ): Promise<string> {
     const platform = getPlatform();
 
-    console.log("[SpeechService] Starting transcription request", {
-      platform,
-      wordId,
-      nativeTranscript,
-      audioDataType: typeof audioData === "string" ? "uri" : "blob",
-      audioDataValue: typeof audioData === "string" ? audioData : `Blob(${audioData.size} bytes, ${audioData.type})`,
-    });
+    // console.log("[SpeechService] Starting transcription request", {
+    // platform,
+    //   wordId,
+    //   nativeTranscript,
+    //   audioDataType: typeof audioData === "string" ? "uri" : "blob",
+    //     audioDataValue: typeof audioData === "string" ? audioData : `Blob(${audioData.size} bytes, ${audioData.type})`,
+    // });
 
     const formData = new FormData();
 
@@ -48,7 +48,7 @@ export const speechService = {
     if (typeof audioData === "string") {
       // Native (iOS/Android): Use URI directly with file object format
       // React Native FormData expects { uri, type, name } for file uploads
-      console.log("[SpeechService] Appending file URI to FormData:", audioData);
+      // console.log("[SpeechService] Appending file URI to FormData:", audioData);
 
       const fileObject = {
         uri: audioData,
@@ -58,27 +58,27 @@ export const speechService = {
 
       formData.append("audio", fileObject);
 
-      console.log("[SpeechService] File object appended:", {
-        uri: audioData,
-        type: mimeType,
-        name: fileName,
-      });
+      // console.log("[SpeechService] File object appended:", {
+      // uri: audioData,
+      //   type: mimeType,
+      //     name: fileName,
+      // });
     } else {
       // Web: Use Blob directly
-      console.log("[SpeechService] Appending Blob to FormData:", {
-        size: audioData.size,
-        type: audioData.type,
-      });
+      // console.log("[SpeechService] Appending Blob to FormData:", {
+      //     size: audioData.size,
+      //       type: audioData.type,
+      // });
 
       // Create a File object from Blob for better compatibility
       const file = new File([audioData], fileName, { type: mimeType });
       formData.append("audio", file);
 
-      console.log("[SpeechService] File created from Blob:", {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
+      // console.log("[SpeechService] File created from Blob:", {
+      // name: file.name,
+      //   size: file.size,
+      //     type: file.type,
+      // });
     }
 
     formData.append("word_id", wordId);
@@ -88,13 +88,13 @@ export const speechService = {
       formData.append("native_transcript", nativeTranscript);
     }
 
-    console.log("[SpeechService] FormData fields:", {
-      word_id: wordId,
-      platform: platform,
-      native_transcript: nativeTranscript,
-    });
+    // console.log("[SpeechService] FormData fields:", {
+    //     word_id: wordId,
+    //       platform: platform,
+    //         native_transcript: nativeTranscript,
+    // });
 
-    console.log("[SpeechService] Sending request to /api/speech/transcribe");
+    // console.log("[SpeechService] Sending request to /api/speech/transcribe");
 
     try {
       const response = await api.post<SpeechTranscribeResponse>(
@@ -108,10 +108,10 @@ export const speechService = {
         }
       );
 
-      console.log("[SpeechService] Response received:", {
-        status: response.status,
-        data: response.data,
-      });
+      // console.log("[SpeechService] Response received:", {
+      // status: response.status,
+      //   data: response.data,
+      // });
 
       if (!response.data.success) {
         throw new Error(response.data.error || "Transcription failed");

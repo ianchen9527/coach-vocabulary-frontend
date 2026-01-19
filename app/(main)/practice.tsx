@@ -284,15 +284,15 @@ export default function PracticeScreen() {
     wordId: string,
     correctWord: string
   ) => {
-    console.log("[Practice] handleSpeakingResult called", { transcript, wordId, correctWord });
+    // console.log("[Practice] handleSpeakingResult called", { transcript, wordId, correctWord });
 
     const trimmedTranscript = transcript.trim();
     const nativeCorrect = trimmedTranscript !== "" && checkSpeakingAnswer(trimmedTranscript, correctWord);
-    console.log("[Practice] Native recognition result:", { nativeCorrect, hasTranscript: trimmedTranscript !== "" });
+    // console.log("[Practice] Native recognition result:", { nativeCorrect, hasTranscript: trimmedTranscript !== "" });
 
     if (nativeCorrect) {
       // 原生辨識成功，直接進入結果
-      console.log("[Practice] Native correct, entering result");
+      // console.log("[Practice] Native correct, entering result");
       setRecognizedText(transcript);
       setSpeakingCorrect(true);
       exerciseFlow.enterResult(0);
@@ -301,7 +301,7 @@ export default function PracticeScreen() {
 
     // 原生辨識有結果但不正確，直接標記為錯誤（不呼叫 Whisper）
     if (trimmedTranscript !== "") {
-      console.log("[Practice] Native detected speech but incorrect, skipping Whisper");
+      // console.log("[Practice] Native detected speech but incorrect, skipping Whisper");
       setRecognizedText(transcript);
       setSpeakingCorrect(false);
       exerciseFlow.enterResult(-1);
@@ -309,9 +309,9 @@ export default function PracticeScreen() {
     }
 
     // 原生辨識無結果，嘗試 Whisper 後備
-    console.log("[Practice] Native detected nothing, calling Whisper fallback...");
+    // console.log("[Practice] Native detected nothing, calling Whisper fallback...");
     const result = await tryWhisperFallback(transcript, wordId, correctWord);
-    console.log("[Practice] Whisper result:", result);
+    // console.log("[Practice] Whisper result:", result);
 
     setRecognizedText(result.transcript);
     setSpeakingCorrect(result.correct);
@@ -319,14 +319,14 @@ export default function PracticeScreen() {
   }, [tryWhisperFallback, exerciseFlow]);
 
   const handleStopRecording = () => {
-    console.log("[Practice] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
+    // console.log("[Practice] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
     if (isRecording && exerciseFlow.phase === "options") {
       // 進入 processing 階段（防止其他 effect 干擾）
       exerciseFlow.enterProcessing();
 
       // 使用當前的 final 或 interim transcript（優先使用 final）
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
-      console.log("[Practice] Transcript:", transcript);
+      // console.log("[Practice] Transcript:", transcript);
 
       speechRecognition.abort();
       setIsRecording(false);
@@ -364,7 +364,7 @@ export default function PracticeScreen() {
       currentExercise?.type.startsWith("speaking") &&
       isRecording // 還在錄音中表示是超時進入的
     ) {
-      console.log("[Practice] Timeout detected in processing phase, stopping recording");
+      // console.log("[Practice] Timeout detected in processing phase, stopping recording");
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
 
       speechRecognition.abort();
@@ -388,7 +388,7 @@ export default function PracticeScreen() {
       exerciseFlow.phase === "options" &&
       isRecording
     ) {
-      console.log("[Practice] Final transcript received, entering processing");
+      // console.log("[Practice] Final transcript received, entering processing");
       // 進入 processing 階段
       exerciseFlow.enterProcessing();
 

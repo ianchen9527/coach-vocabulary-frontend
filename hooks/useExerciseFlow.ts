@@ -78,7 +78,7 @@ export function useExerciseFlow(
 
   // 進入處理階段（用於需要 async 驗證的口說題）
   const enterProcessing = useCallback(() => {
-    console.log("[ExerciseFlow] enterProcessing called", { currentPhase: phase });
+    // console.log("[ExerciseFlow] enterProcessing called", { currentPhase: phase });
     clearTimer();
     setPhase("processing");
 
@@ -91,11 +91,11 @@ export function useExerciseFlow(
   // 進入結果階段
   const enterResult = useCallback(
     (optionIndex: number, skipResultTimeout = false) => {
-      console.log("[ExerciseFlow] enterResult called", { optionIndex, currentPhase: phase, skipResultTimeout });
+      // console.log("[ExerciseFlow] enterResult called", { optionIndex, currentPhase: phase, skipResultTimeout });
       clearTimer();
       setSelectedIndex(optionIndex);
       setPhase("result");
-      console.log("[ExerciseFlow] Phase set to 'result'");
+      // console.log("[ExerciseFlow] Phase set to 'result'");
 
       // 記錄回答時間（如果還沒記錄的話，例如從 options 直接進入 result）
       if (optionsStartTimeRef.current !== null && responseTimeMsRef.current === null) {
@@ -104,13 +104,13 @@ export function useExerciseFlow(
 
       // 如果 skipResultTimeout 為 true，不啟動自動完成計時器（用於需要等待 async 驗證的情況）
       if (!skipResultTimeout) {
-        console.log("[ExerciseFlow] Starting result timeout", { duration: finalConfig.resultDuration });
+        // console.log("[ExerciseFlow] Starting result timeout", { duration: finalConfig.resultDuration });
         resultTimeoutRef.current = setTimeout(() => {
-          console.log("[ExerciseFlow] Result timeout fired, calling onComplete");
+          // console.log("[ExerciseFlow] Result timeout fired, calling onComplete");
           onCompleteRef.current?.();
         }, finalConfig.resultDuration);
       } else {
-        console.log("[ExerciseFlow] Result timeout SKIPPED (async verification pending)");
+        // console.log("[ExerciseFlow] Result timeout SKIPPED (async verification pending)");
       }
     },
     [clearTimer, finalConfig.resultDuration, phase]
@@ -118,9 +118,9 @@ export function useExerciseFlow(
 
   // 啟動結果階段計時器（用於 async 驗證完成後）
   const startResultTimeout = useCallback(() => {
-    console.log("[ExerciseFlow] startResultTimeout called", { phase });
+    // console.log("[ExerciseFlow] startResultTimeout called", { phase });
     if (phase !== "result") {
-      console.log("[ExerciseFlow] startResultTimeout IGNORED - not in result phase");
+      // console.log("[ExerciseFlow] startResultTimeout IGNORED - not in result phase");
       return;
     }
 
@@ -129,9 +129,9 @@ export function useExerciseFlow(
       clearTimeout(resultTimeoutRef.current);
     }
 
-    console.log("[ExerciseFlow] Starting result timeout (manual)", { duration: finalConfig.resultDuration });
+    // console.log("[ExerciseFlow] Starting result timeout (manual)", { duration: finalConfig.resultDuration });
     resultTimeoutRef.current = setTimeout(() => {
-      console.log("[ExerciseFlow] Result timeout fired, calling onComplete");
+      // console.log("[ExerciseFlow] Result timeout fired, calling onComplete");
       onCompleteRef.current?.();
     }, finalConfig.resultDuration);
   }, [phase, finalConfig.resultDuration]);
@@ -171,9 +171,9 @@ export function useExerciseFlow(
   // 選擇選項
   const select = useCallback(
     (index: number, skipResultTimeout = false) => {
-      console.log("[ExerciseFlow] select() called", { index, phase, selectedIndex, skipResultTimeout });
+      // console.log("[ExerciseFlow] select() called", { index, phase, selectedIndex, skipResultTimeout });
       if (phase !== "options" || selectedIndex !== null) {
-        console.log("[ExerciseFlow] select() BLOCKED - phase is not 'options' or already selected", { phase, selectedIndex });
+        // console.log("[ExerciseFlow] select() BLOCKED - phase is not 'options' or already selected", { phase, selectedIndex });
         return;
       }
       enterResult(index, skipResultTimeout);
@@ -183,7 +183,7 @@ export function useExerciseFlow(
 
   // 更新已選擇的索引（用於 async 驗證完成後更新結果）
   const updateSelectedIndex = useCallback((index: number) => {
-    console.log("[ExerciseFlow] updateSelectedIndex called", { index, phase });
+    // console.log("[ExerciseFlow] updateSelectedIndex called", { index, phase });
     if (phase === "result") {
       setSelectedIndex(index);
     }
