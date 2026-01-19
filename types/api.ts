@@ -226,6 +226,13 @@ export interface LevelAnalysisSubmitResponse {
   } | null;
 }
 
+// === Speech Transcription ===
+export interface SpeechTranscribeResponse {
+  success: boolean;
+  transcript: string;
+  error?: string;
+}
+
 // === Helpers ===
 export function getExerciseCategory(type: ExerciseType): ExerciseCategory {
   if (type.startsWith("reading")) return "reading";

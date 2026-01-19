@@ -25,12 +25,16 @@ export interface UseSpeechRecognitionReturn {
   error: string | null;
   isSupported: boolean;
   hasPermission: boolean | null;
+  // 錄音資料（用於 Whisper 後備方案）
+  audioUri: string | null;  // Native: 錄音檔案 URI
+  audioBlob: Blob | null;   // Web: 錄音 Blob
 
   // 方法
   start: (options?: StartOptions) => Promise<boolean>;
   stop: () => void;
   abort: () => void;
   reset: () => void;
+  getAudioData: () => string | Blob | null;  // 取得當前錄音資料（同步）
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -55,8 +59,21 @@ export function useSpeechRecognition(
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
+  // 錄音資料狀態
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
+  // 錄音資料 refs（用於同步存取，避免閉包問題）
+  const audioUriRef = useRef<string | null>(null);
+  const audioBlobRef = useRef<Blob | null>(null);
+
   // 用於等待 start 事件的 Promise resolve
   const startResolveRef = useRef<((value: boolean) => void) | null>(null);
+
+  // Web 平台的 MediaRecorder 相關 refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // 檢查平台支援
   const isSupported =
@@ -104,6 +121,48 @@ export function useSpeechRecognition(
     setIsRecognizing(false);
   });
 
+  // 事件監聽：錄音開始（Native 平台，取得錄音檔案 URI）
+  // 使用 audiostart 而非 audioend，因為 URI 在開始時就可用，避免時序問題
+  useSpeechRecognitionEvent("audiostart", (event) => {
+    if (event.uri) {
+      audioUriRef.current = event.uri;
+      setAudioUri(event.uri);
+    }
+  });
+
+  // 也監聽 audioend 作為備用（某些情況下 audiostart 可能沒有 URI）
+  useSpeechRecognitionEvent("audioend", (event) => {
+    if (event.uri && !audioUriRef.current) {
+      audioUriRef.current = event.uri;
+      setAudioUri(event.uri);
+    }
+  });
+
+  // 停止 Web 平台的 MediaRecorder
+  const stopWebRecording = useCallback(() => {
+    if (Platform.OS === "web" && mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (err) {
+        // Silently ignore stop errors
+      }
+    }
+  }, []);
+
+  // 清理 Web 平台的 MediaStream
+  const cleanupWebRecording = useCallback(() => {
+    if (Platform.OS === "web") {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+    }
+  }, []);
+
   // 請求權限
   const requestPermissions = useCallback(async (): Promise<boolean> => {
     try {
@@ -137,14 +196,56 @@ export function useSpeechRecognition(
     setInterimTranscript("");
     setFinalTranscript("");
     setError(null);
+    setAudioUri(null);
+    setAudioBlob(null);
 
     try {
+      // Web 平台：啟動 MediaRecorder 錄音
+      if (Platform.OS === "web") {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaStreamRef.current = stream;
+          audioChunksRef.current = [];
+
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: "audio/webm",
+          });
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              audioChunksRef.current.push(e.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+            setAudioBlob(blob);
+            cleanupWebRecording();
+          };
+
+          mediaRecorderRef.current = mediaRecorder;
+          // 使用 timeslice 參數讓 ondataavailable 每 100ms 觸發一次
+          // 這樣在 abort() 時就能取得已錄製的音訊片段
+          mediaRecorder.start(100);
+        } catch (webErr) {
+          console.warn("Failed to start web audio recording:", webErr);
+          // 繼續進行語音辨識，即使錄音失敗
+        }
+      }
+
       const options: ExpoSpeechRecognitionOptions = {
         lang: config.lang || "en-US",
         interimResults: config.interimResults ?? true,
         maxAlternatives: config.maxAlternatives || 1,
         continuous: config.continuous || false,
         contextualStrings: startOptions?.contextualStrings,
+        // Native 平台：啟用錄音持久化
+        ...(Platform.OS !== "web" && {
+          recordingOptions: {
+            persist: true,
+            outputFileName: "speech_recording.wav",
+          },
+        }),
       };
 
       // 建立 Promise 等待 start 事件
@@ -174,27 +275,48 @@ export function useSpeechRecognition(
   const stop = useCallback(() => {
     try {
       ExpoSpeechRecognitionModule.stop();
+      // 停止 Web 錄音
+      stopWebRecording();
     } catch (err) {
       console.error("Stop recognition error:", err);
     }
-  }, []);
+  }, [stopWebRecording]);
 
   // 中止辨識（不取得結果）
   const abort = useCallback(() => {
     try {
+      // Web 平台：在停止前同步建立 blob，確保資料可立即使用
+      if (Platform.OS === "web" && audioChunksRef.current.length > 0) {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        audioBlobRef.current = blob;
+        setAudioBlob(blob);
+      }
+
       ExpoSpeechRecognitionModule.abort();
       setIsRecognizing(false);
       setInterimTranscript("");
+      // 停止 Web 錄音
+      stopWebRecording();
     } catch (err) {
       // Silently ignore abort errors
     }
-  }, []);
+  }, [stopWebRecording]);
 
   // 重置辨識狀態（清除上一題的結果）
   const reset = useCallback(() => {
     setInterimTranscript("");
     setFinalTranscript("");
     setError(null);
+    setAudioUri(null);
+    setAudioBlob(null);
+    audioUriRef.current = null;
+    audioBlobRef.current = null;
+    cleanupWebRecording();
+  }, [cleanupWebRecording]);
+
+  // 取得當前錄音資料（同步存取 refs，避免閉包問題）
+  const getAudioData = useCallback((): string | Blob | null => {
+    return audioUriRef.current || audioBlobRef.current;
   }, []);
 
   return {
@@ -204,9 +326,12 @@ export function useSpeechRecognition(
     error,
     isSupported,
     hasPermission,
+    audioUri,
+    audioBlob,
     start,
     stop,
     abort,
     reset,
+    getAudioData,
   };
 }

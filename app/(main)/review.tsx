@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { Alert } from "../../components/ui/Alert";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { reviewService } from "../../services/reviewService";
+import { speechService } from "../../services/speechService";
 import { handleApiError, getAssetUrl } from "../../services/api";
 import type { ReviewSessionResponse, AnswerSchema } from "../../types/api";
 import { Volume2, Mic } from "lucide-react-native";
@@ -67,6 +68,7 @@ export default function ReviewScreen() {
   const [recognizedText, setRecognizedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isPreparingRecording, setIsPreparingRecording] = useState(false);
+  const [speakingCorrect, setSpeakingCorrect] = useState(false);
 
   const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answersRef = useRef<AnswerSchema[]>([]);
@@ -120,9 +122,8 @@ export default function ReviewScreen() {
       const responseTimeMs = exerciseFlow.getResponseTimeMs() ?? undefined;
 
       if (currentExercise.type.startsWith("speaking")) {
-        // 口說題：根據辨識結果判斷
-        correct = recognizedText.trim() !== "" &&
-          checkSpeakingAnswer(recognizedText, currentWord.word);
+        // 口說題：使用已計算的 speakingCorrect 狀態
+        correct = speakingCorrect;
         // user_answer：使用 recognizedText（包含超時時的 interim transcript）
         userAnswer = recognizedText.trim() || undefined;
       } else {
@@ -148,6 +149,7 @@ export default function ReviewScreen() {
     // 清理口說狀態
     setRecognizedText("");
     setIsRecording(false);
+    setSpeakingCorrect(false);
 
     goToNext();
   });
@@ -244,32 +246,128 @@ export default function ReviewScreen() {
     if (success) {
       setIsRecording(true);
       // 錄音準備好後，手動開始 options 倒數
-      exerciseFlow.startOptionsCountdown();
+      // 使用自訂回調：超時時進入 processing 階段而非直接進入 result
+      exerciseFlow.startOptionsCountdown(() => {
+        exerciseFlow.enterProcessing();
+      });
     } else {
       Alert.alert(
         "無法啟動",
         speechRecognition.error || "無法啟動語音辨識，請檢查麥克風權限"
       );
-      exerciseFlow.select(-1);
+      exerciseFlow.enterResult(-1);
     }
   };
 
-  const handleStopRecording = () => {
-    if (isRecording) {
-      exerciseFlow.clearTimer();
+  // Whisper 後備驗證函數
+  const tryWhisperFallback = useCallback(async (
+    nativeTranscript: string,
+    wordId: string,
+    correctWord: string
+  ): Promise<{ correct: boolean; transcript: string }> => {
+    // 取得錄音資料（使用 ref-based getter 避免閉包問題）
+    const audioData = speechRecognition.getAudioData();
 
-      const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
+    if (!audioData) {
+      // 沒有錄音資料，使用原生結果
+      return {
+        correct: checkSpeakingAnswer(nativeTranscript, correctWord),
+        transcript: nativeTranscript,
+      };
+    }
 
-      if (transcript && currentWord) {
-        setRecognizedText(transcript);
-        const correct = checkSpeakingAnswer(transcript, currentWord.word);
-        exerciseFlow.select(correct ? 0 : -1);
-      } else {
-        exerciseFlow.select(-1);
+    try {
+      const whisperTranscript = await speechService.transcribe(
+        audioData,
+        wordId,
+        nativeTranscript
+      );
+
+      const whisperCorrect = checkSpeakingAnswer(whisperTranscript, correctWord);
+
+      // 如果 Whisper 判斷正確，使用 Whisper 結果
+      if (whisperCorrect) {
+        return { correct: true, transcript: whisperTranscript };
       }
+
+      // 兩者都失敗，使用原生結果
+      return {
+        correct: false,
+        transcript: nativeTranscript || whisperTranscript,
+      };
+    } catch (error) {
+      console.error("Whisper fallback error:", error);
+      // Whisper 失敗，使用原生結果
+      return {
+        correct: checkSpeakingAnswer(nativeTranscript, correctWord),
+        transcript: nativeTranscript,
+      };
+    }
+  }, [speechRecognition.getAudioData]);
+
+  // 處理口說結果（含 Whisper 後備）
+  // 此函數應在 "processing" 階段被呼叫
+  const handleSpeakingResult = useCallback(async (
+    transcript: string,
+    wordId: string,
+    correctWord: string
+  ) => {
+    // console.log("[Review] handleSpeakingResult called", { transcript, wordId, correctWord });
+
+    const trimmedTranscript = transcript.trim();
+    const nativeCorrect = trimmedTranscript !== "" && checkSpeakingAnswer(trimmedTranscript, correctWord);
+    // console.log("[Review] Native recognition result:", { nativeCorrect, hasTranscript: trimmedTranscript !== "" });
+
+    if (nativeCorrect) {
+      // 原生辨識成功，直接進入結果
+      // console.log("[Review] Native correct, entering result");
+      setRecognizedText(transcript);
+      setSpeakingCorrect(true);
+      exerciseFlow.enterResult(0);
+      return;
+    }
+
+    // 原生辨識有結果但不正確，直接標記為錯誤（不呼叫 Whisper）
+    if (trimmedTranscript !== "") {
+      // console.log("[Review] Native detected speech but incorrect, skipping Whisper");
+      setRecognizedText(transcript);
+      setSpeakingCorrect(false);
+      exerciseFlow.enterResult(-1);
+      return;
+    }
+
+    // 原生辨識無結果，嘗試 Whisper 後備
+    // console.log("[Review] Native detected nothing, calling Whisper fallback...");
+    const result = await tryWhisperFallback(transcript, wordId, correctWord);
+    // console.log("[Review] Whisper result:", result);
+
+    setRecognizedText(result.transcript);
+    setSpeakingCorrect(result.correct);
+    exerciseFlow.enterResult(result.correct ? 0 : -1);
+  }, [tryWhisperFallback, exerciseFlow]);
+
+  const handleStopRecording = () => {
+    // console.log("[Review] handleStopRecording called", { isRecording, phase: exerciseFlow.phase });
+    if (isRecording && exerciseFlow.phase === "options") {
+      // 進入 processing 階段（防止其他 effect 干擾）
+      exerciseFlow.enterProcessing();
+
+      // 使用當前的 final 或 interim transcript（優先使用 final）
+      const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
+      // console.log("[Review] Transcript:", transcript);
 
       speechRecognition.abort();
       setIsRecording(false);
+
+      if (currentWord) {
+        handleSpeakingResult(
+          transcript || "",
+          currentWord.id,
+          currentWord.word
+        );
+      } else {
+        exerciseFlow.enterResult(-1);
+      }
     }
   };
 
@@ -298,24 +396,29 @@ export default function ReviewScreen() {
     }
   }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, isPreparingRecording]);
 
-  // 口說題：超時時檢查是否有已辨識的內容
+  // 口說題：超時處理（進入 processing 階段但還在錄音中）
   useEffect(() => {
     if (
       pagePhase === "exercising" &&
-      exerciseFlow.phase === "result" &&
+      exerciseFlow.phase === "processing" &&
       currentExercise?.type.startsWith("speaking") &&
-      isRecording
+      isRecording // 還在錄音中表示是超時進入的
     ) {
+      // console.log("[Review] Timeout detected in processing phase, stopping recording");
       const transcript = speechRecognition.finalTranscript || speechRecognition.interimTranscript;
-
-      if (transcript) {
-        setRecognizedText(transcript);
-      }
 
       speechRecognition.abort();
       setIsRecording(false);
+
+      if (currentWord) {
+        handleSpeakingResult(
+          transcript || "",
+          currentWord.id,
+          currentWord.word
+        );
+      }
     }
-  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, speechRecognition.finalTranscript, speechRecognition.interimTranscript]);
+  }, [pagePhase, exerciseFlow.phase, currentExercise, isRecording, speechRecognition.finalTranscript, speechRecognition.interimTranscript, currentWord, handleSpeakingResult]);
 
   // 監聽辨識完成並自動提交答案
   // isRecording 確保是「這一題」的錄音結果，避免用上一題的 finalTranscript 判斷
@@ -328,19 +431,22 @@ export default function ReviewScreen() {
       currentWord &&
       isRecording
     ) {
-      // 先停止辨識，避免 continuous 模式下連線持續佔用
+      // console.log("[Review] Final transcript received, entering processing");
+      // 進入 processing 階段
+      exerciseFlow.enterProcessing();
+
+      // 停止辨識
       speechRecognition.abort();
       setIsRecording(false);
-      setRecognizedText(speechRecognition.finalTranscript);
 
-      const correct = checkSpeakingAnswer(
+      // 處理結果
+      handleSpeakingResult(
         speechRecognition.finalTranscript,
+        currentWord.id,
         currentWord.word
       );
-
-      exerciseFlow.select(correct ? 0 : -1);
     }
-  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord, isRecording]);
+  }, [speechRecognition.finalTranscript, currentExercise, pagePhase, exerciseFlow.phase, currentWord, isRecording, handleSpeakingResult, exerciseFlow]);
 
   // 從 intro 進入 display
   const startFromIntro = () => {
@@ -584,15 +690,25 @@ export default function ReviewScreen() {
               </>
             )}
 
+            {/* 處理階段（口說題驗證中） */}
+            {exerciseFlow.phase === "processing" && currentExercise.type.startsWith("speaking") && (
+              <SpeakingResult
+                isCorrect={false}
+                recognizedText=""
+                correctAnswer={currentWord.word}
+                isVerifying={true}
+              />
+            )}
+
             {/* 結果階段：顯示正確答案 */}
             {exerciseFlow.phase === "result" && (
               <>
                 {currentExercise.type.startsWith("speaking") ? (
                   <SpeakingResult
-                    isCorrect={recognizedText.trim() !== "" &&
-                      checkSpeakingAnswer(recognizedText, currentWord.word)}
+                    isCorrect={speakingCorrect}
                     recognizedText={recognizedText}
                     correctAnswer={currentWord.word}
+                    isVerifying={false}
                   />
                 ) : (
                   <>

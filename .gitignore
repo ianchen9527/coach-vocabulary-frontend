@@ -60,3 +60,4 @@ appstore-info.txt
 
 /tools/*.png
 /tools/**/*.png
+/tools/review-credentials.json
