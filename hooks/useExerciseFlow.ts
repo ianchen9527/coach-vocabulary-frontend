@@ -78,7 +78,7 @@ export function useExerciseFlow(
 
   // 進入結果階段
   const enterResult = useCallback(
-    (optionIndex: number) => {
+    (optionIndex: number, skipResultTimeout = false) => {
       clearTimer();
       setSelectedIndex(optionIndex);
       setPhase("result");
@@ -88,12 +88,31 @@ export function useExerciseFlow(
         responseTimeMsRef.current = Date.now() - optionsStartTimeRef.current;
       }
 
-      resultTimeoutRef.current = setTimeout(() => {
-        onCompleteRef.current?.();
-      }, finalConfig.resultDuration);
+      // 如果 skipResultTimeout 為 true，不啟動自動完成計時器（用於需要等待 async 驗證的情況）
+      if (!skipResultTimeout) {
+        resultTimeoutRef.current = setTimeout(() => {
+          onCompleteRef.current?.();
+        }, finalConfig.resultDuration);
+      }
     },
-    [clearTimer, finalConfig.resultDuration]
+    [clearTimer, finalConfig.resultDuration, phase]
   );
+
+  // 啟動結果階段計時器（用於 async 驗證完成後）
+  const startResultTimeout = useCallback(() => {
+    if (phase !== "result") {
+      return;
+    }
+
+    // 清除任何現有的計時器
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+    }
+
+    resultTimeoutRef.current = setTimeout(() => {
+      onCompleteRef.current?.();
+    }, finalConfig.resultDuration);
+  }, [phase, finalConfig.resultDuration]);
 
   // 開始答題（進入 question phase）
   // delayOptionsCountdown: 如果為 true，進入 options 階段時不自動開始倒數（用於口說題等待錄音準備好）
@@ -128,12 +147,21 @@ export function useExerciseFlow(
 
   // 選擇選項
   const select = useCallback(
-    (index: number) => {
-      if (phase !== "options" || selectedIndex !== null) return;
-      enterResult(index);
+    (index: number, skipResultTimeout = false) => {
+      if (phase !== "options" || selectedIndex !== null) {
+        return;
+      }
+      enterResult(index, skipResultTimeout);
     },
     [phase, selectedIndex, enterResult]
   );
+
+  // 更新已選擇的索引（用於 async 驗證完成後更新結果）
+  const updateSelectedIndex = useCallback((index: number) => {
+    if (phase === "result") {
+      setSelectedIndex(index);
+    }
+  }, [phase]);
 
   // 重置
   const reset = useCallback(() => {
@@ -165,5 +193,7 @@ export function useExerciseFlow(
     reset,
     clearTimer,
     getResponseTimeMs,
+    startResultTimeout,
+    updateSelectedIndex,
   };
 }

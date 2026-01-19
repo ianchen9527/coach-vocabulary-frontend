@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Check, X } from "lucide-react-native";
 import { colors } from "../../lib/tw";
 import { DEBUG_MODE } from "../../lib/config";
@@ -7,13 +7,25 @@ interface SpeakingResultProps {
   isCorrect: boolean;
   recognizedText: string;
   correctAnswer: string;
+  isVerifying?: boolean;
 }
 
 export function SpeakingResult({
   isCorrect,
   recognizedText,
   correctAnswer,
+  isVerifying = false,
 }: SpeakingResultProps) {
+  // 顯示驗證中狀態
+  if (isVerifying) {
+    return (
+      <View style={styles.verifyingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.verifyingText}>驗證中...</Text>
+      </View>
+    );
+  }
+
   return (
     <>
       {/* 結果圖示 */}
@@ -96,5 +108,16 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.success,
     fontWeight: "bold",
+  },
+  verifyingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  verifyingText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: colors.mutedForeground,
+    fontWeight: "500",
   },
 });
