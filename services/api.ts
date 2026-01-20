@@ -3,7 +3,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // API Base URL - 可以透過環境變數覆蓋
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
+// Staging
 // const API_BASE_URL = "https://coach-vocab-api-dmui4j7mda-de.a.run.app";
+// Prod
+// const API_BASE_URL = "https://coach-vocab-api-prod-1068204580938.asia-east1.run.app";
+// Local
+// const API_BASE_URL = "http://192.168.0.214:8000";
 
 // AsyncStorage Keys
 export const STORAGE_KEYS = {
