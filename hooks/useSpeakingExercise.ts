@@ -3,7 +3,10 @@ import { Alert } from "../components/ui/Alert";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { speechService } from "../services/speechService";
 import { checkSpeakingAnswer } from "../utils/exerciseHelpers";
+import { createDebugLogger } from "../utils/debug";
 import type { ExercisePhase } from "./useExerciseFlow";
+
+const debug = createDebugLogger("useSpeakingExercise");
 
 interface ExerciseFlowInterface {
   phase: ExercisePhase;
@@ -74,9 +77,28 @@ export function useSpeakingExercise({
       wId: string,
       correctWord: string
     ): Promise<{ correct: boolean; transcript: string }> => {
+      debug.log("tryWhisperFallback called:", {
+        nativeTranscript,
+        wordId: wId,
+        correctWord,
+      });
+
       const audioData = speechRecognition.getAudioData();
 
+      debug.log("Audio data available:", !!audioData);
+      if (audioData) {
+        if (typeof audioData === "string") {
+          debug.log("Audio data is URI:", audioData);
+        } else {
+          debug.log("Audio data is Blob:", {
+            size: audioData.size,
+            type: audioData.type,
+          });
+        }
+      }
+
       if (!audioData) {
+        debug.log("No audio data - using native transcript only");
         return {
           correct: checkSpeakingAnswer(nativeTranscript, correctWord),
           transcript: nativeTranscript,
@@ -84,13 +106,17 @@ export function useSpeakingExercise({
       }
 
       try {
+        debug.log("Calling speechService.transcribe...");
         const whisperTranscript = await speechService.transcribe(
           audioData,
           wId,
           nativeTranscript
         );
 
+        debug.log("Whisper transcript received:", whisperTranscript);
+
         const whisperCorrect = checkSpeakingAnswer(whisperTranscript, correctWord);
+        debug.log("Whisper answer correct:", whisperCorrect);
 
         if (whisperCorrect) {
           return { correct: true, transcript: whisperTranscript };
@@ -101,9 +127,11 @@ export function useSpeakingExercise({
           transcript: nativeTranscript || whisperTranscript,
         };
       } catch (error) {
-        console.error("Whisper fallback error:", error);
+        debug.error("Whisper fallback error:", error);
+        const fallbackCorrect = checkSpeakingAnswer(nativeTranscript, correctWord);
+        debug.log("Falling back to native transcript, correct:", fallbackCorrect);
         return {
-          correct: checkSpeakingAnswer(nativeTranscript, correctWord),
+          correct: fallbackCorrect,
           transcript: nativeTranscript,
         };
       }

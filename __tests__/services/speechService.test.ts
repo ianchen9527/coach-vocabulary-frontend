@@ -6,6 +6,9 @@ import { Platform } from 'react-native';
 jest.mock('../../services/api', () => ({
   api: {
     post: jest.fn(),
+    defaults: {
+      baseURL: 'http://localhost:8000',
+    },
   },
 }));
 
@@ -46,6 +49,7 @@ describe('speechService', () => {
           {
             headers: {
               'Content-Type': 'multipart/form-data',
+              'Connection': 'close',
             },
             timeout: 10000,
           }

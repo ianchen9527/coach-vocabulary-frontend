@@ -240,10 +240,11 @@ export function useSpeechRecognition(
         continuous: config.continuous || false,
         contextualStrings: startOptions?.contextualStrings,
         // Native 平台：啟用錄音持久化
+        // 使用唯一檔名避免檔案鎖定/快取問題
         ...(Platform.OS !== "web" && {
           recordingOptions: {
             persist: true,
-            outputFileName: "speech_recording.wav",
+            outputFileName: `speech_recording_${Date.now()}.wav`,
           },
         }),
       };
