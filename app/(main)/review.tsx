@@ -2,10 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
   useWindowDimensions,
-  ActivityIndicator,
 } from "react-native";
 import { Alert } from "../../components/ui/Alert";
 import { useRouter } from "expo-router";
@@ -13,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { reviewService } from "../../services/reviewService";
 import { handleApiError, getAssetUrl } from "../../services/api";
 import type { ReviewSessionResponse, AnswerSchema } from "../../types/api";
-import { Volume2, Mic } from "lucide-react-native";
+import { Volume2 } from "lucide-react-native";
 import { useSpeech } from "../../hooks/useSpeech";
 import { useSpeakingExercise } from "../../hooks/useSpeakingExercise";
 import { colors } from "../../lib/tw";
@@ -21,10 +19,12 @@ import { CountdownText } from "../../components/ui/CountdownText";
 import {
   ExerciseHeader,
   ProgressBar,
-  ExerciseOptions,
   ExerciseLoading,
   ExerciseComplete,
-  SpeakingResult,
+  IntroScreen,
+  ReadingExercise,
+  ListeningExercise,
+  SpeakingExercise,
 } from "../../components/exercise";
 import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 import {
@@ -281,24 +281,72 @@ export default function ReviewScreen() {
 
   if (pagePhase === "intro") {
     return (
-      <SafeAreaView style={styles.introContainer}>
-        <Text style={styles.introTitle}>
-          {getExerciseTitle(currentExerciseType, "review")}
-        </Text>
-        <Text style={styles.introSubtitle}>
-          先複習單字，再進行測驗
-        </Text>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={startFromIntro}
-        >
-          <Text style={styles.primaryButtonText}>
-            開始
-          </Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <IntroScreen
+        title={getExerciseTitle(currentExerciseType, "review")}
+        subtitle="先複習單字，再進行測驗"
+        onStart={startFromIntro}
+      />
     );
   }
+
+  // Determine which exercise component to render
+  const renderExercise = () => {
+    if (!currentExercise || !currentWord) return null;
+
+    const exerciseCategory = getExerciseCategory(currentExercise.type);
+
+    if (exerciseCategory === "reading") {
+      return (
+        <ReadingExercise
+          word={currentWord.word}
+          options={currentExercise.options}
+          correctIndex={currentExercise.correct_index}
+          phase={exerciseFlow.phase}
+          remainingMs={exerciseFlow.remainingMs}
+          selectedIndex={exerciseFlow.selectedIndex}
+          onSelect={exerciseFlow.select}
+          exerciseType={currentExercise.type}
+        />
+      );
+    }
+
+    if (exerciseCategory === "listening") {
+      return (
+        <ListeningExercise
+          options={currentExercise.options}
+          correctIndex={currentExercise.correct_index}
+          phase={exerciseFlow.phase}
+          remainingMs={exerciseFlow.remainingMs}
+          selectedIndex={exerciseFlow.selectedIndex}
+          onSelect={exerciseFlow.select}
+          exerciseType={currentExercise.type}
+          isSpeaking={isSpeaking}
+        />
+      );
+    }
+
+    if (exerciseCategory === "speaking") {
+      return (
+        <SpeakingExercise
+          translation={currentWord.translation}
+          word={currentWord.word}
+          imageUrl={currentWord.image_url}
+          phase={exerciseFlow.phase}
+          remainingMs={exerciseFlow.remainingMs}
+          exerciseType={currentExercise.type}
+          isPreparingRecording={speakingExercise.isPreparingRecording}
+          isRecording={speakingExercise.isRecording}
+          recognizedText={speakingExercise.recognizedText}
+          interimTranscript={speakingExercise.speechRecognition.interimTranscript}
+          isCorrect={speakingExercise.isCorrect}
+          onStopRecording={speakingExercise.handleStopRecording}
+          getAssetUrl={getAssetUrl}
+        />
+      );
+    }
+
+    return null;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -350,164 +398,8 @@ export default function ReviewScreen() {
           </View>
         )}
 
-        {/* 答題階段 */}
-        {pagePhase === "exercising" && currentExercise && currentWord && (
-          <View style={styles.exerciseContainer}>
-
-            {/* 題目階段：顯示單字，倒數計時 */}
-            {exerciseFlow.phase === "question" && (
-              <>
-                <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                {currentExercise.type.startsWith("reading") && (
-                  <>
-                    <Text style={styles.exerciseWordText}>
-                      {currentWord.word}
-                    </Text>
-                    <Text style={styles.exerciseHintText}>
-                      準備作答...
-                    </Text>
-                  </>
-                )}
-                {currentExercise.type.startsWith("listening") && (
-                  <View style={styles.listeningContainer}>
-                    <View style={styles.listeningButton}>
-                      <Volume2
-                        size={48}
-                        color={isSpeaking ? colors.primary : colors.mutedForeground}
-                      />
-                    </View>
-                    <Text style={styles.listeningText}>
-                      {isSpeaking ? "播放中..." : "準備作答..."}
-                    </Text>
-                  </View>
-                )}
-                {currentExercise.type.startsWith("speaking") && (
-                  <>
-                    {currentExercise.type === "speaking_lv1" && currentWord.image_url && (
-                      <Image
-                        source={{ uri: getAssetUrl(currentWord.image_url) || undefined }}
-                        style={styles.speakingImage}
-                        resizeMode="contain"
-                      />
-                    )}
-                    <Text style={styles.speakingWord}>
-                      {currentWord.translation}
-                    </Text>
-                    <Text style={styles.speakingInstruction}>
-                      準備作答...
-                    </Text>
-                  </>
-                )}
-              </>
-            )}
-
-            {/* 選項階段：顯示選項，倒數計時 */}
-            {exerciseFlow.phase === "options" && (
-              <>
-                {currentExercise.type.startsWith("speaking") ? (
-                  speakingExercise.isPreparingRecording ? (
-                    // 準備錄音中：顯示 spinner
-                    <View style={styles.preparingContainer}>
-                      <ActivityIndicator size="large" color={colors.primary} />
-                      <Text style={styles.preparingText}>準備錄音中...</Text>
-                    </View>
-                  ) : (
-                    // 錄音中：顯示倒數 + 錄音 UI
-                    <>
-                      <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                      {/* 錄音中圖示 */}
-                      <View style={styles.recordingContainer}>
-                        <View style={[styles.micButton, speakingExercise.isRecording && styles.micButtonActive]}>
-                          <Mic size={48} color={speakingExercise.isRecording ? colors.destructive : colors.primary} />
-                        </View>
-                        {speakingExercise.isRecording && (
-                          <View style={styles.recordingIndicator}>
-                            <View style={styles.recordingDot} />
-                            <Text style={styles.recordingText}>錄音中...</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      {/* 即時辨識結果 */}
-                      {speakingExercise.speechRecognition.interimTranscript && (
-                        <View style={styles.transcriptBox}>
-                          <Text style={styles.transcriptLabel}>辨識中：</Text>
-                          <Text style={styles.transcriptText}>
-                            "{speakingExercise.speechRecognition.interimTranscript}"
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* 完成按鈕 */}
-                      <TouchableOpacity
-                        style={styles.primaryButton}
-                        onPress={speakingExercise.handleStopRecording}
-                        disabled={!speakingExercise.isRecording}
-                      >
-                        <Text style={styles.primaryButtonText}>完成</Text>
-                      </TouchableOpacity>
-                    </>
-                  )
-                ) : (
-                  // 非口說題：正常顯示
-                  <>
-                    <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                    <ExerciseOptions
-                      options={currentExercise.options}
-                      selectedIndex={null}
-                      correctIndex={currentExercise.correct_index}
-                      showResult={false}
-                      onSelect={exerciseFlow.select}
-                      disabled={false}
-                      layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                      showImage={currentExercise.type === "reading_lv1"}
-                    />
-                  </>
-                )}
-              </>
-            )}
-
-            {/* 處理階段（口說題驗證中） */}
-            {exerciseFlow.phase === "processing" && currentExercise.type.startsWith("speaking") && (
-              <SpeakingResult
-                isCorrect={false}
-                recognizedText=""
-                correctAnswer={currentWord.word}
-                isVerifying={true}
-              />
-            )}
-
-            {/* 結果階段：顯示正確答案 */}
-            {exerciseFlow.phase === "result" && (
-              <>
-                {currentExercise.type.startsWith("speaking") ? (
-                  <SpeakingResult
-                    isCorrect={speakingExercise.isCorrect}
-                    recognizedText={speakingExercise.recognizedText}
-                    correctAnswer={currentWord.word}
-                    isVerifying={false}
-                  />
-                ) : (
-                  <>
-                    {exerciseFlow.selectedIndex === -1 && (
-                      <Text style={styles.timeoutText}>時間到！</Text>
-                    )}
-                    <ExerciseOptions
-                      options={currentExercise.options}
-                      selectedIndex={exerciseFlow.selectedIndex}
-                      correctIndex={currentExercise.correct_index}
-                      showResult={true}
-                      onSelect={() => { }}
-                      disabled={true}
-                      layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                      showImage={currentExercise.type === "reading_lv1"}
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </View>
-        )}
+        {/* 答題階段 - 使用組件化的練習 */}
+        {pagePhase === "exercising" && renderExercise()}
       </View>
     </SafeAreaView>
   );

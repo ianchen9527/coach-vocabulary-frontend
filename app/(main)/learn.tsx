@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
   useWindowDimensions,
 } from "react-native";
@@ -19,9 +18,9 @@ import { CountdownText } from "../../components/ui/CountdownText";
 import {
   ExerciseHeader,
   ProgressBar,
-  ExerciseOptions,
   ExerciseLoading,
   ExerciseComplete,
+  ReadingExercise,
 } from "../../components/exercise";
 import { useExerciseFlow } from "../../hooks/useExerciseFlow";
 import { exerciseCommonStyles as styles } from "../../styles/exerciseStyles";
@@ -247,58 +246,18 @@ export default function LearnScreen() {
           </View>
         )}
 
-        {/* 答題階段 */}
+        {/* 答題階段 - 使用 ReadingExercise 組件 */}
         {pagePhase === "exercising" && currentExercise && currentWord && (
-          <View style={styles.exerciseContainer}>
-            {/* 題目階段：顯示單字，倒數計時 */}
-            {exerciseFlow.phase === "question" && (
-              <>
-                <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                <Text style={styles.exerciseWordText}>
-                  {currentWord.word}
-                </Text>
-                <Text style={styles.exerciseHintText}>
-                  準備作答...
-                </Text>
-              </>
-            )}
-
-            {/* 選項階段：顯示選項，倒數計時 */}
-            {exerciseFlow.phase === "options" && (
-              <>
-                <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                <ExerciseOptions
-                  options={currentExercise.options}
-                  selectedIndex={null}
-                  correctIndex={currentExercise.correct_index}
-                  showResult={false}
-                  onSelect={exerciseFlow.select}
-                  disabled={false}
-                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                  showImage={currentExercise.type === "reading_lv1"}
-                />
-              </>
-            )}
-
-            {/* 結果階段：顯示正確答案 */}
-            {exerciseFlow.phase === "result" && (
-              <>
-                {exerciseFlow.selectedIndex === -1 && (
-                  <Text style={styles.timeoutText}>時間到！</Text>
-                )}
-                <ExerciseOptions
-                  options={currentExercise.options}
-                  selectedIndex={exerciseFlow.selectedIndex}
-                  correctIndex={currentExercise.correct_index}
-                  showResult={true}
-                  onSelect={() => { }}
-                  disabled={true}
-                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                  showImage={currentExercise.type === "reading_lv1"}
-                />
-              </>
-            )}
-          </View>
+          <ReadingExercise
+            word={currentWord.word}
+            options={currentExercise.options}
+            correctIndex={currentExercise.correct_index}
+            phase={exerciseFlow.phase}
+            remainingMs={exerciseFlow.remainingMs}
+            selectedIndex={exerciseFlow.selectedIndex}
+            onSelect={exerciseFlow.select}
+            exerciseType={currentExercise.type}
+          />
         )}
       </View>
     </SafeAreaView>
