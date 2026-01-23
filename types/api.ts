@@ -22,6 +22,7 @@ export interface UserInfo {
   id: string;
   email: string;
   username: string;
+  vocabulary_tutorial_completed_at?: string | null;
 }
 
 export interface DeleteAccountRequest {
@@ -134,6 +135,7 @@ export interface LearnCompleteResponse {
   success: boolean;
   words_moved: number;
   today_learned: number;
+  next_available_time?: string;
 }
 
 // === Practice ===
@@ -155,6 +157,7 @@ export interface PracticeSubmitResponse {
     correct_count: number;
     incorrect_count: number;
   };
+  next_available_time?: string;
 }
 
 // === Review ===
@@ -174,6 +177,7 @@ export interface ReviewCompleteResponse {
   success: boolean;
   words_completed: number;
   next_practice_time: string;
+  next_available_time?: string;
 }
 
 // === Admin ===
@@ -195,7 +199,7 @@ export type ExerciseType =
   | "speaking_lv1"
   | "speaking_lv2";
 
-export type SessionMode = "learn" | "practice" | "review";
+export type SessionMode = "learn" | "practice" | "review" | "tutorial";
 
 export type ExerciseCategory = "reading" | "listening" | "speaking";
 
@@ -231,6 +235,44 @@ export interface SpeechTranscribeResponse {
   success: boolean;
   transcript: string;
   error?: string;
+}
+
+// === Tracking ===
+export type TrackingPlatform = "ios" | "android" | "web";
+
+export type TrackingEventType =
+  | "screen_view"
+  | "action"
+  | "exercise"
+  | "error"
+  | "session";
+
+export interface TrackingEvent {
+  device_id: string;
+  user_id?: string;
+  session_id: string;
+  exercise_session_id?: string;
+  event_type: TrackingEventType;
+  event_name: string;
+  properties?: Record<string, unknown>;
+  timestamp: string;
+  app_version: string;
+  platform: TrackingPlatform;
+}
+
+// === Tutorial ===
+// 教學步驟：繼承 ExerciseSchema 並加入 step 欄位
+export interface TutorialStepSchema extends ExerciseSchema {
+  step: number;
+}
+
+export interface TutorialSessionResponse {
+  word: WordDetailSchema;
+  steps: TutorialStepSchema[];
+}
+
+export interface TutorialCompleteResponse {
+  success: boolean;
 }
 
 // === Helpers ===

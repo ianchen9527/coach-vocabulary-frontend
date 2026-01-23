@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { colors } from "../../lib/tw";
 
@@ -59,17 +60,19 @@ export function PermissionModal({
             onPress={onAllow}
             activeOpacity={0.8}
           >
-            <Text style={styles.allowButtonText}>允許</Text>
+            <Text style={styles.allowButtonText}>繼續</Text>
           </TouchableOpacity>
 
-          {/* Dismiss Link */}
-          <TouchableOpacity
-            style={styles.dismissButton}
-            onPress={onDismiss}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.dismissButtonText}>稍後再說</Text>
-          </TouchableOpacity>
+          {/* Dismiss Link - hidden on iOS for App Store compliance */}
+          {Platform.OS !== "ios" && (
+            <TouchableOpacity
+              style={styles.dismissButton}
+              onPress={onDismiss}
+              activeOpacity={0.6}
+            >
+              <Text style={styles.dismissButtonText}>稍後再說</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>

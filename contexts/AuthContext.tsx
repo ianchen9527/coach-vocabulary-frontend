@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
 import { STORAGE_KEYS } from "../services/api";
+import { trackingService } from "../services/trackingService";
 import type { UserInfo } from "../types/api";
 
 interface AuthState {
@@ -15,6 +16,7 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: (email: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               user,
               isLoading: false,
             });
+
+            // 連結使用者 ID（已登入狀態）
+            trackingService.linkUserId(user.id);
           } catch {
             // Token 無效，清除本地儲存
             await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
@@ -92,6 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authService.register(email, username, password);
       await saveAuthData(response);
+
+      // 追蹤註冊事件
+      trackingService.register();
+      trackingService.linkUserId(response.id);
     } catch (error) {
       console.error("Register failed:", error);
       throw error;
@@ -102,6 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authService.login(email, password);
       await saveAuthData(response);
+
+      // 追蹤登入事件
+      trackingService.login();
+      trackingService.linkUserId(response.id);
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -110,6 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      // 追蹤登出事件（在清除資料前）
+      trackingService.logout();
+      trackingService.clearUserId();
+
       await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
       await AsyncStorage.removeItem(STORAGE_KEYS.USER);
 
@@ -126,6 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = async (email: string) => {
     try {
+      // 追蹤刪除帳號事件（在清除資料前）
+      trackingService.deleteAccount();
+      trackingService.clearUserId();
+
       await authService.deleteAccount(email);
       await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
       await AsyncStorage.removeItem(STORAGE_KEYS.USER);
@@ -141,8 +162,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    try {
+      const user = await authService.getMe();
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      setState((prev) => ({ ...prev, user }));
+    } catch (error) {
+      console.error("Refresh user failed:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, register, login, logout, deleteAccount }}>
+    <AuthContext.Provider value={{ ...state, register, login, logout, deleteAccount, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

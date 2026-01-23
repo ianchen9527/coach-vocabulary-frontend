@@ -58,6 +58,16 @@ describe('useSpeechRecognition', () => {
 
   describe('start', () => {
     it('should return true when started successfully', async () => {
+      // Mock start to trigger the 'start' event (simulating successful recognition start)
+      (ExpoSpeechRecognitionModule.start as jest.Mock).mockImplementation(() => {
+        // Simulate the native module firing the 'start' event
+        setTimeout(() => {
+          if (eventHandlers['start']) {
+            eventHandlers['start']();
+          }
+        }, 0);
+      });
+
       const { result } = renderHook(() => useSpeechRecognition());
 
       let startResult: boolean = false;
@@ -93,6 +103,15 @@ describe('useSpeechRecognition', () => {
     });
 
     it('should use custom config when provided', async () => {
+      // Mock start to trigger the 'start' event
+      (ExpoSpeechRecognitionModule.start as jest.Mock).mockImplementation(() => {
+        setTimeout(() => {
+          if (eventHandlers['start']) {
+            eventHandlers['start']();
+          }
+        }, 0);
+      });
+
       const config = {
         lang: 'zh-TW',
         interimResults: false,
@@ -106,7 +125,6 @@ describe('useSpeechRecognition', () => {
         startResult = await result.current.start();
       });
 
-      // Debug: check if start succeeded
       expect(startResult).toBe(true);
       expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -120,6 +138,15 @@ describe('useSpeechRecognition', () => {
 
   describe('reset', () => {
     it('should clear finalTranscript and interimTranscript', async () => {
+      // Mock start to trigger the 'start' event
+      (ExpoSpeechRecognitionModule.start as jest.Mock).mockImplementation(() => {
+        setTimeout(() => {
+          if (eventHandlers['start']) {
+            eventHandlers['start']();
+          }
+        }, 0);
+      });
+
       const { result } = renderHook(() => useSpeechRecognition());
 
       // Manually trigger a result event to set transcripts

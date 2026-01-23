@@ -280,4 +280,100 @@ export const exerciseCommonStyles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
+
+  // Intro screen
+  introContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  introTitle: {
+    fontSize: 30,
+    fontWeight: "bold",
+    color: colors.foreground,
+    marginBottom: 16,
+  },
+  introSubtitle: {
+    fontSize: 18,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    marginBottom: 32,
+  },
+
+  // Reading exercise
+  readingWord: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: colors.foreground,
+    marginBottom: 8,
+  },
+  readingInstruction: {
+    fontSize: 16,
+    color: colors.mutedForeground,
+    marginBottom: 32,
+  },
+
+  // Exercise word text (used in question phase)
+  exerciseWordText: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: colors.foreground,
+    marginBottom: 8,
+  },
+  exerciseHintText: {
+    fontSize: 16,
+    color: colors.mutedForeground,
+    marginBottom: 32,
+  },
+
+  // Preparing recording
+  preparingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  preparingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.mutedForeground,
+  },
+
+  // Audio status (learn screen)
+  audioStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  audioStatusText: {
+    color: colors.mutedForeground,
+    marginLeft: 8,
+  },
+
+  // Steps list for intro screen
+  stepsContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  stepItem: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  stepNumber: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.accent,
+    marginRight: 8,
+  },
+  stepText: {
+    fontSize: 18,
+    color: colors.foreground,
+  },
+  timeWarning: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    marginBottom: 24,
+  },
 });

@@ -16,6 +16,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { homeService } from "../../services/homeService";
 import { adminService } from "../../services/adminService";
 import { handleApiError } from "../../services/api";
+import { trackingService } from "../../services/trackingService";
 import type { StatsResponse } from "../../types/api";
 import {
   BookOpen,
@@ -31,6 +32,8 @@ import {
   Trash2,
   Settings,
   ChevronLeft,
+  GraduationCap,
+  Check,
 } from "lucide-react-native";
 import { colors } from "../../lib/tw";
 import { DEBUG_MODE } from "../../lib/config";
@@ -40,7 +43,7 @@ import { PermissionModal } from "../../components/ui/PermissionModal";
 import { BottomSheet, BottomSheetItem } from "../../components/ui/BottomSheet";
 import { DeleteAccountModal } from "../../components/ui/DeleteAccountModal";
 
-type ActionType = "review" | "practice" | "learn" | null;
+type ActionType = "review" | "practice" | "learn" | "tutorial" | null;
 type BottomSheetStage = "main" | "account";
 
 export default function HomeScreen() {
@@ -91,6 +94,9 @@ export default function HomeScreen() {
     }
     setShowMicModal(false);
 
+    // 追蹤權限回應
+    trackingService.permissionResponse("microphone", granted ? "granted" : "denied");
+
     // Check if we should show notification modal next
     const shouldShowNotif =
       await permissionService.shouldShowNotificationPermissionPrompt();
@@ -102,6 +108,9 @@ export default function HomeScreen() {
   const handleMicModalDismiss = async () => {
     await permissionService.recordMicPermissionDismissal();
     setShowMicModal(false);
+
+    // 追蹤權限回應
+    trackingService.permissionResponse("microphone", "dismissed");
 
     // Still check notification modal
     const shouldShowNotif =
@@ -118,11 +127,17 @@ export default function HomeScreen() {
       await permissionService.recordNotificationPermissionGranted();
     }
     setShowNotificationModal(false);
+
+    // 追蹤權限回應
+    trackingService.permissionResponse("notification", granted ? "granted" : "denied");
   };
 
   const handleNotificationModalDismiss = async () => {
     await permissionService.recordNotificationPermissionDismissal();
     setShowNotificationModal(false);
+
+    // 追蹤權限回應
+    trackingService.permissionResponse("notification", "dismissed");
   };
 
   const fetchStats = useCallback(async () => {
@@ -158,10 +173,23 @@ export default function HomeScreen() {
     setIsRefreshing(false);
   };
 
-  // 決定主要按鈕的動作（優先順序：程度分析 > 複習 > 練習 > 學習）
+  // 檢查教學是否已完成
+  const isTutorialCompleted = !!user?.vocabulary_tutorial_completed_at;
+
+  // 決定主要按鈕的動作（優先順序：程度分析 > 教學 > 複習 > 練習 > 學習）
   const getNextAction = (): ActionType | "analysis" => {
     if (!stats) return null;
     if (stats.current_level === null) return "analysis";
+    if (!isTutorialCompleted) return "tutorial";
+    if (stats.can_review) return "review";
+    if (stats.can_practice) return "practice";
+    if (stats.can_learn) return "learn";
+    return null;
+  };
+
+  // 取得次要動作（教學為主要時的正常流程）
+  const getSecondaryAction = (): ActionType | null => {
+    if (!stats) return null;
     if (stats.can_review) return "review";
     if (stats.can_practice) return "practice";
     if (stats.can_learn) return "learn";
@@ -172,6 +200,8 @@ export default function HomeScreen() {
     switch (action) {
       case "analysis":
         return "分析程度";
+      case "tutorial":
+        return "進行教學";
       case "review":
         return "開始複習";
       case "practice":
@@ -183,26 +213,36 @@ export default function HomeScreen() {
     }
   };
 
-  const getActionIcon = (action: ActionType | "analysis") => {
+  const getActionIcon = (action: ActionType | "analysis", forSecondary = false) => {
+    const iconColor = forSecondary ? colors.primary : colors.primaryForeground;
+    const mutedColor = forSecondary ? colors.mutedForeground : colors.mutedForeground;
     switch (action) {
       case "analysis":
-        return <Zap size={24} color={colors.primaryForeground} />;
+        return <Zap size={24} color={iconColor} />;
+      case "tutorial":
+        return <GraduationCap size={24} color={iconColor} />;
       case "review":
-        return <RotateCcw size={24} color={colors.primaryForeground} />;
+        return <RotateCcw size={24} color={iconColor} />;
       case "practice":
-        return <Dumbbell size={24} color={colors.primaryForeground} />;
+        return <Dumbbell size={24} color={iconColor} />;
       case "learn":
-        return <BookOpen size={24} color={colors.primaryForeground} />;
+        return <BookOpen size={24} color={iconColor} />;
       default:
-        return <Play size={24} color={colors.mutedForeground} />;
+        return <Play size={24} color={mutedColor} />;
     }
   };
 
-  const handleStartAction = () => {
-    const action = getNextAction();
+  const navigateToAction = (action: ActionType | "analysis" | null) => {
+    if (!action) return;
+
+    trackingService.buttonTap(`start_${action}`, "home");
+
     switch (action) {
       case "analysis":
         router.push("/(main)/analysis");
+        break;
+      case "tutorial":
+        router.push("/(main)/tutorial");
         break;
       case "review":
         router.push("/(main)/review");
@@ -214,6 +254,14 @@ export default function HomeScreen() {
         router.push("/(main)/learn");
         break;
     }
+  };
+
+  const handleStartAction = () => {
+    navigateToAction(getNextAction());
+  };
+
+  const handleSecondaryAction = () => {
+    navigateToAction(getSecondaryAction());
   };
 
   const handleResetCooldown = async () => {
@@ -383,7 +431,7 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 主要按鈕 - 開始練習 */}
+          {/* 主要按鈕 */}
           <TouchableOpacity
             style={[
               styles.mainActionButton,
@@ -407,13 +455,27 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           {/* 狀態提示 */}
-          {nextAction && (
+          {nextAction && nextAction !== "tutorial" && (
             <Text style={styles.actionHint}>
               {nextAction === "analysis" && "請先完成程度分析以開啟學習任務"}
               {nextAction === "review" && `有 ${stats?.available_review} 個單字需要複習`}
               {nextAction === "practice" && `有 ${stats?.available_practice} 個單字可以練習`}
               {nextAction === "learn" && "開始學習新單字吧！"}
             </Text>
+          )}
+
+          {/* 次要按鈕 - 當教學為主要時顯示正常流程 */}
+          {nextAction === "tutorial" && getSecondaryAction() && (
+            <TouchableOpacity
+              style={styles.secondaryActionButton}
+              onPress={handleSecondaryAction}
+              activeOpacity={0.8}
+            >
+              {getActionIcon(getSecondaryAction(), true)}
+              <Text style={styles.secondaryActionButtonText}>
+                {getActionLabel(getSecondaryAction())}
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Status Messages */}
@@ -482,6 +544,22 @@ export default function HomeScreen() {
       >
         {bottomSheetStage === "main" ? (
           <>
+            <BottomSheetItem
+              icon={<GraduationCap size={22} />}
+              label="使用教學"
+              onPress={() => {
+                setShowBottomSheet(false);
+                trackingService.buttonTap("tutorial", "drawer");
+                router.push("/(main)/tutorial");
+              }}
+              rightElement={
+                isTutorialCompleted ? (
+                  <View style={styles.drawerBadge}>
+                    <Check size={14} color={colors.successForeground} />
+                  </View>
+                ) : undefined
+              }
+            />
             <BottomSheetItem
               icon={<Settings size={22} />}
               label="帳號管理"
@@ -694,5 +772,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.destructiveForeground,
     marginLeft: 8,
+  },
+  secondaryActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: "transparent",
+  },
+  secondaryActionButtonText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 12,
+    color: colors.primary,
+  },
+  drawerBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

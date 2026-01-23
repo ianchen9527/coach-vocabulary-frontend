@@ -3,7 +3,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // API Base URL - 可以透過環境變數覆蓋
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
+// Staging
 // const API_BASE_URL = "https://coach-vocab-api-dmui4j7mda-de.a.run.app";
+// Prod
+// const API_BASE_URL = "https://coach-vocab-api-prod-1068204580938.asia-east1.run.app";
+// Local
+// const API_BASE_URL = "http://192.168.0.214:8000";
 
 // AsyncStorage Keys
 export const STORAGE_KEYS = {
@@ -15,6 +20,11 @@ export const STORAGE_KEYS = {
   // Notification permission tracking
   NOTIFICATION_PERMISSION_DISMISSED_AT: "notificationPermissionDismissedAt",
   NOTIFICATION_PERMISSION_GRANTED: "notificationPermissionGranted",
+  // Tracking
+  DEVICE_ID: "trackingDeviceId",
+  SESSION_ID: "trackingSessionId",
+  LAST_ACTIVE_TIME: "trackingLastActiveTime",
+  IS_FRESH_INSTALL: "trackingIsFreshInstall",
 } as const;
 
 // 建立 Axios 實例
@@ -43,10 +53,21 @@ api.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
+// 錯誤追蹤回調（由 trackingService 設定，避免循環依賴）
+let errorTrackingCallback: ((endpoint: string, statusCode: number, errorMessage?: string) => void) | null = null;
+
+export function setErrorTrackingCallback(
+  callback: (endpoint: string, statusCode: number, errorMessage?: string) => void
+): void {
+  errorTrackingCallback = callback;
+}
+
 // 回應攔截器 - 錯誤處理
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    const requestUrl = error.config?.url || "";
+
     if (error.response) {
       const { status, data } = error.response;
 
@@ -59,8 +80,19 @@ api.interceptors.response.use(
         AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN).catch(console.error);
         AsyncStorage.removeItem(STORAGE_KEYS.USER).catch(console.error);
       }
+
+      // 追蹤 API 錯誤（排除 /api/track 以避免無限循環）
+      if (errorTrackingCallback && !requestUrl.includes("/api/track")) {
+        const errorDetail = (data as { detail?: string })?.detail;
+        errorTrackingCallback(requestUrl, status, errorDetail);
+      }
     } else if (error.request) {
       console.error("Network error - no response received:", error.message);
+
+      // 追蹤網路錯誤
+      if (errorTrackingCallback && !requestUrl.includes("/api/track")) {
+        errorTrackingCallback(requestUrl, 0, "Network error");
+      }
     } else {
       console.error("Request setup error:", error.message);
     }

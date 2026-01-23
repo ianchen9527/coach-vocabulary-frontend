@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { analysisService } from "../../services/analysisService";
 import { handleApiError } from "../../services/api";
+import { trackingService } from "../../services/trackingService";
 import type { LevelAnalysisExerciseSchema } from "../../types/api";
 import { ArrowLeft, Sparkles } from "lucide-react-native";
 import { colors } from "../../lib/tw";
@@ -40,6 +41,8 @@ export default function AnalysisScreen() {
     const [exercises, setExercises] = useState<LevelAnalysisExerciseSchema[]>([]);
     const [currentExercise, setCurrentExercise] = useState<LevelAnalysisExerciseSchema | null>(null);
     const logicRef = useRef<LevelAnalysisLogic | null>(null);
+    const sessionStartTimeRef = useRef<number>(Date.now());
+    const answersRef = useRef<{ correct: boolean }[]>([]);
 
     // 進入下一題或完成
     const nextQuestion = useCallback(() => {
@@ -62,6 +65,12 @@ export default function AnalysisScreen() {
     // 提交結果
     const submitResult = async (levelOrder: number) => {
         setPagePhase("submitting");
+
+        // 追蹤分析完成
+        const durationMs = Date.now() - sessionStartTimeRef.current;
+        const correctCount = answersRef.current.filter((a) => a.correct).length;
+        trackingService.exerciseComplete("analysis", answersRef.current.length, correctCount, durationMs);
+
         try {
             await analysisService.submit(levelOrder);
             router.replace("/(main)");
@@ -73,10 +82,33 @@ export default function AnalysisScreen() {
     };
 
     // 使用共用的答題流程 Hook
-    const exerciseFlow = useExerciseFlow({}, () => {
+    const exerciseFlow = useExerciseFlow({
+        onQuestionShown: () => {
+            if (currentExercise) {
+                trackingService.questionShown("analysis", currentExercise.word_id, currentExercise.type, answersRef.current.length);
+            }
+        },
+        onAnswerPhaseStarted: () => {
+            if (currentExercise) {
+                trackingService.answerPhaseStarted("analysis", currentExercise.word_id, currentExercise.type);
+            }
+        },
+    }, () => {
         // 處理答案
         if (!logicRef.current || !currentExercise) return;
         const correct = exerciseFlow.selectedIndex === currentExercise.correct_index;
+        const responseTimeMs = exerciseFlow.getResponseTimeMs() ?? undefined;
+
+        // 追蹤答題
+        trackingService.exerciseAnswer(
+            "analysis",
+            currentExercise.word_id,
+            currentExercise.type,
+            correct,
+            responseTimeMs
+        );
+        answersRef.current.push({ correct });
+
         const finished = logicRef.current.handleAnswer(currentExercise.level_order, correct);
         if (finished) {
             const state = logicRef.current.getState();
@@ -92,6 +124,10 @@ export default function AnalysisScreen() {
             setExercises(data.exercises);
             logicRef.current = new LevelAnalysisLogic(data.exercises);
             setPagePhase("intro");
+
+            // 追蹤分析開始
+            sessionStartTimeRef.current = Date.now();
+            trackingService.exerciseStart("analysis", 10); // 最多 10 題
         } catch (error) {
             Alert.alert("載入失敗", handleApiError(error), [
                 { text: "返回", onPress: () => router.back() },
@@ -119,7 +155,16 @@ export default function AnalysisScreen() {
         exerciseFlow.clearTimer();
         Alert.alert("確定離開？", "分析進度將不會保存", [
             { text: "取消", style: "cancel" },
-            { text: "離開", style: "destructive", onPress: () => router.back() },
+            {
+                text: "離開",
+                style: "destructive",
+                onPress: () => {
+                    // 追蹤分析放棄
+                    const durationMs = Date.now() - sessionStartTimeRef.current;
+                    trackingService.exerciseAbandon("analysis", answersRef.current.length, 10, durationMs);
+                    router.back();
+                },
+            },
         ]);
     };
 

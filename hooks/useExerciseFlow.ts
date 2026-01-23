@@ -4,11 +4,14 @@ export interface ExerciseFlowConfig {
   questionDuration?: number; // 預設 1000ms
   optionsDuration?: number; // 預設 4000ms
   resultDuration?: number; // 預設 1500ms
+  // 追蹤用回調
+  onQuestionShown?: () => void;
+  onAnswerPhaseStarted?: () => void;
 }
 
 export type ExercisePhase = "idle" | "question" | "options" | "processing" | "result";
 
-const DEFAULT_CONFIG: Required<ExerciseFlowConfig> = {
+const DEFAULT_CONFIG = {
   questionDuration: 1000,
   optionsDuration: 4000,
   resultDuration: 1500,
@@ -143,9 +146,15 @@ export function useExerciseFlow(
     setSelectedIndex(null);
     setPhase("question");
 
+    // 追蹤：題目顯示
+    finalConfig.onQuestionShown?.();
+
     startCountdown(finalConfig.questionDuration, () => {
       setPhase("options");
       optionsStartTimeRef.current = Date.now();
+
+      // 追蹤：答題階段開始
+      finalConfig.onAnswerPhaseStarted?.();
 
       // 只有在不延遲的情況下才自動開始倒數
       if (!delayOptionsCountdown) {

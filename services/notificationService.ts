@@ -56,6 +56,7 @@ export const notificationService = {
      */
     async scheduleNextSessionNotification(nextAvailableTime: string | null) {
         if (isNotificationDisabled()) {
+            console.log(`[${Platform.OS}] Notifications disabled - skipping schedule for: ${nextAvailableTime}`);
             return;
         }
 
@@ -100,6 +101,7 @@ export const notificationService = {
      */
     async cancelAllNotifications() {
         if (isNotificationDisabled()) {
+            console.log(`[${Platform.OS}] Notifications disabled - skipping cancel.`);
             return;
         }
         await Notifications.cancelAllScheduledNotificationsAsync();

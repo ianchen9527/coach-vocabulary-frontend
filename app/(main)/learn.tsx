@@ -2,9 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
-  StyleSheet,
   useWindowDimensions,
 } from "react-native";
 import { Alert } from "../../components/ui/Alert";
@@ -12,6 +10,8 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { learnService } from "../../services/learnService";
 import { handleApiError, getAssetUrl } from "../../services/api";
+import { trackingService } from "../../services/trackingService";
+import { notificationService } from "../../services/notificationService";
 import type { LearnSessionResponse, AnswerSchema } from "../../types/api";
 import { Volume2 } from "lucide-react-native";
 import { useSpeech } from "../../hooks/useSpeech";
@@ -20,11 +20,12 @@ import { CountdownText } from "../../components/ui/CountdownText";
 import {
   ExerciseHeader,
   ProgressBar,
-  ExerciseOptions,
   ExerciseLoading,
   ExerciseComplete,
+  ReadingExercise,
 } from "../../components/exercise";
 import { useExerciseFlow } from "../../hooks/useExerciseFlow";
+import { exerciseCommonStyles as styles } from "../../styles/exerciseStyles";
 
 type PagePhase = "loading" | "display" | "exercising" | "complete";
 
@@ -48,6 +49,7 @@ export default function LearnScreen() {
 
   const displayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answersRef = useRef<AnswerSchema[]>([]);
+  const sessionStartTimeRef = useRef<number>(Date.now());
 
   const currentWord = session?.words[currentIndex];
   const currentExercise = session?.exercises[currentIndex];
@@ -66,7 +68,18 @@ export default function LearnScreen() {
   };
 
   // 使用共用的答題流程 Hook
-  const exerciseFlow = useExerciseFlow({}, () => {
+  const exerciseFlow = useExerciseFlow({
+    onQuestionShown: () => {
+      if (currentWord && currentExercise) {
+        trackingService.questionShown("learn", currentWord.id, currentExercise.type, currentIndex);
+      }
+    },
+    onAnswerPhaseStarted: () => {
+      if (currentWord && currentExercise) {
+        trackingService.answerPhaseStarted("learn", currentWord.id, currentExercise.type);
+      }
+    },
+  }, () => {
     // 記錄答案
     if (currentWord && currentExercise) {
       // 計算回答時間（超時時也記錄實際時間）
@@ -90,6 +103,15 @@ export default function LearnScreen() {
       };
       setAnswers((prev) => [...prev, newAnswer]);
       answersRef.current = [...answersRef.current, newAnswer];
+
+      // 追蹤答題
+      trackingService.exerciseAnswer(
+        "learn",
+        currentWord.id,
+        currentExercise.type,
+        correct,
+        responseTimeMs
+      );
     }
 
     goToNext();
@@ -116,6 +138,10 @@ export default function LearnScreen() {
         }
         setSession(data);
         setPagePhase("display");
+
+        // 追蹤練習開始
+        sessionStartTimeRef.current = Date.now();
+        trackingService.exerciseStart("learn", data.words.length);
       } catch (error) {
         Alert.alert("載入失敗", handleApiError(error), [
           { text: "返回", onPress: () => router.back() },
@@ -132,6 +158,8 @@ export default function LearnScreen() {
     if (pagePhase === "display" && currentWord) {
       // 播放音檔
       speak(currentWord.word, getAssetUrl(currentWord.audio_url));
+      // 追蹤：音檔播放
+      trackingService.audioPlayed("learn", currentWord.id, "auto");
 
       // 重置倒數
       const start = Date.now();
@@ -159,9 +187,15 @@ export default function LearnScreen() {
   const completeSession = async () => {
     if (!session) return;
 
+    // 追蹤練習完成
+    const durationMs = Date.now() - sessionStartTimeRef.current;
+    const correctCount = answersRef.current.filter((a) => a.correct).length;
+    trackingService.exerciseComplete("learn", session.words.length, correctCount, durationMs);
+
     try {
       const wordIds = session.words.map((w) => w.id);
-      await learnService.complete(wordIds, answersRef.current);
+      const response = await learnService.complete(wordIds, answersRef.current);
+      notificationService.scheduleNextSessionNotification(response.next_available_time ?? null);
     } catch (error) {
       console.error("Complete session error:", error);
     }
@@ -173,7 +207,16 @@ export default function LearnScreen() {
     exerciseFlow.clearTimer();
     Alert.alert("確定離開？", "學習進度將不會保存", [
       { text: "取消", style: "cancel" },
-      { text: "離開", style: "destructive", onPress: () => router.back() },
+      {
+        text: "離開",
+        style: "destructive",
+        onPress: () => {
+          // 追蹤練習放棄
+          const durationMs = Date.now() - sessionStartTimeRef.current;
+          trackingService.exerciseAbandon("learn", currentIndex, totalWords, durationMs);
+          router.back();
+        },
+      },
     ]);
   };
 
@@ -208,10 +251,10 @@ export default function LearnScreen() {
       />
 
       {/* Content */}
-      <View style={[styles.content, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
+      <View style={[styles.contentContainer, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" } : null]}>
         {/* 展示階段：顯示單字和翻譯 */}
         {pagePhase === "display" && currentWord && (
-          <View style={styles.displayContent}>
+          <View style={styles.displayContainer}>
             {/* 倒數計時 */}
             <CountdownText remainingMs={displayRemainingMs} />
 
@@ -247,131 +290,20 @@ export default function LearnScreen() {
           </View>
         )}
 
-        {/* 答題階段 */}
+        {/* 答題階段 - 使用 ReadingExercise 組件 */}
         {pagePhase === "exercising" && currentExercise && currentWord && (
-          <View style={styles.exerciseContent}>
-            {/* 題目階段：顯示單字，倒數計時 */}
-            {exerciseFlow.phase === "question" && (
-              <>
-                <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                <Text style={styles.exerciseWordText}>
-                  {currentWord.word}
-                </Text>
-                <Text style={styles.exerciseInstructions}>
-                  準備作答...
-                </Text>
-              </>
-            )}
-
-            {/* 選項階段：顯示選項，倒數計時 */}
-            {exerciseFlow.phase === "options" && (
-              <>
-                <CountdownText remainingMs={exerciseFlow.remainingMs} />
-                <ExerciseOptions
-                  options={currentExercise.options}
-                  selectedIndex={null}
-                  correctIndex={currentExercise.correct_index}
-                  showResult={false}
-                  onSelect={exerciseFlow.select}
-                  disabled={false}
-                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                  showImage={currentExercise.type === "reading_lv1"}
-                />
-              </>
-            )}
-
-            {/* 結果階段：顯示正確答案 */}
-            {exerciseFlow.phase === "result" && (
-              <>
-                {exerciseFlow.selectedIndex === -1 && (
-                  <Text style={styles.timeoutText}>時間到！</Text>
-                )}
-                <ExerciseOptions
-                  options={currentExercise.options}
-                  selectedIndex={exerciseFlow.selectedIndex}
-                  correctIndex={currentExercise.correct_index}
-                  showResult={true}
-                  onSelect={() => { }}
-                  disabled={true}
-                  layout={currentExercise.type === "reading_lv1" ? "grid" : "list"}
-                  showImage={currentExercise.type === "reading_lv1"}
-                />
-              </>
-            )}
-          </View>
+          <ReadingExercise
+            word={currentWord.word}
+            options={currentExercise.options}
+            correctIndex={currentExercise.correct_index}
+            phase={exerciseFlow.phase}
+            remainingMs={exerciseFlow.remainingMs}
+            selectedIndex={exerciseFlow.selectedIndex}
+            onSelect={exerciseFlow.select}
+            exerciseType={currentExercise.type}
+          />
         )}
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  // Main container
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-
-  // Content
-  content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-
-  // Display phase
-  displayContent: {
-    alignItems: "center",
-  },
-  wordImage: {
-    width: 160,
-    height: 160,
-    borderRadius: 16,
-    backgroundColor: colors.muted,
-    marginBottom: 24,
-  },
-  wordText: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: colors.foreground,
-    marginBottom: 8,
-  },
-  translationText: {
-    fontSize: 24,
-    color: colors.mutedForeground,
-    marginBottom: 16,
-  },
-  audioStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  audioStatusText: {
-    color: colors.mutedForeground,
-    marginLeft: 8,
-  },
-
-  // Exercise phase
-  exerciseContent: {
-    width: "100%",
-    alignItems: "center",
-  },
-  exerciseWordText: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: colors.foreground,
-    marginBottom: 8,
-  },
-  exerciseInstructions: {
-    fontSize: 16,
-    color: colors.mutedForeground,
-    marginBottom: 32,
-  },
-  timeoutText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.destructive,
-    marginTop: 16,
-  },
-});
