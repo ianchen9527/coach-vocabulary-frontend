@@ -16,6 +16,7 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: (email: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,8 +162,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    try {
+      const user = await authService.getMe();
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      setState((prev) => ({ ...prev, user }));
+    } catch (error) {
+      console.error("Refresh user failed:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, register, login, logout, deleteAccount }}>
+    <AuthContext.Provider value={{ ...state, register, login, logout, deleteAccount, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

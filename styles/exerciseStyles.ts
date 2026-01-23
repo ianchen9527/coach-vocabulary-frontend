@@ -350,4 +350,30 @@ export const exerciseCommonStyles = StyleSheet.create({
     color: colors.mutedForeground,
     marginLeft: 8,
   },
+
+  // Steps list for intro screen
+  stepsContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  stepItem: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  stepNumber: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.accent,
+    marginRight: 8,
+  },
+  stepText: {
+    fontSize: 18,
+    color: colors.foreground,
+  },
+  timeWarning: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    marginBottom: 24,
+  },
 });

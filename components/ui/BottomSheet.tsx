@@ -66,6 +66,7 @@ interface BottomSheetItemProps {
   label: string;
   onPress: () => void;
   variant?: "default" | "destructive";
+  rightElement?: React.ReactNode;
 }
 
 export function BottomSheetItem({
@@ -73,6 +74,7 @@ export function BottomSheetItem({
   label,
   onPress,
   variant = "default",
+  rightElement,
 }: BottomSheetItemProps) {
   const textColor =
     variant === "destructive" ? colors.destructive : colors.foreground;
@@ -91,6 +93,7 @@ export function BottomSheetItem({
         })}
       </View>
       <Text style={[styles.itemLabel, { color: textColor }]}>{label}</Text>
+      {rightElement && <View style={styles.itemRight}>{rightElement}</View>}
     </TouchableOpacity>
   );
 }
@@ -123,5 +126,9 @@ const styles = StyleSheet.create({
   itemLabel: {
     fontSize: 17,
     fontWeight: "500",
+    flex: 1,
+  },
+  itemRight: {
+    marginLeft: 12,
   },
 });

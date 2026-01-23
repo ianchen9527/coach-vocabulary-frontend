@@ -22,6 +22,7 @@ export interface UserInfo {
   id: string;
   email: string;
   username: string;
+  vocabulary_tutorial_completed_at?: string | null;
 }
 
 export interface DeleteAccountRequest {
@@ -195,7 +196,7 @@ export type ExerciseType =
   | "speaking_lv1"
   | "speaking_lv2";
 
-export type SessionMode = "learn" | "practice" | "review";
+export type SessionMode = "learn" | "practice" | "review" | "tutorial";
 
 export type ExerciseCategory = "reading" | "listening" | "speaking";
 
@@ -254,6 +255,21 @@ export interface TrackingEvent {
   timestamp: string;
   app_version: string;
   platform: TrackingPlatform;
+}
+
+// === Tutorial ===
+// 教學步驟：繼承 ExerciseSchema 並加入 step 欄位
+export interface TutorialStepSchema extends ExerciseSchema {
+  step: number;
+}
+
+export interface TutorialSessionResponse {
+  word: WordDetailSchema;
+  steps: TutorialStepSchema[];
+}
+
+export interface TutorialCompleteResponse {
+  success: boolean;
 }
 
 // === Helpers ===
