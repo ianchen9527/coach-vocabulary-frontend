@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { useRouter, Href } from "expo-router";
 
@@ -37,6 +38,11 @@ export function useNotificationResponse(config: UseNotificationResponseConfig = 
   };
 
   useEffect(() => {
+    // 通知功能僅在原生平台上運作
+    if (Platform.OS === "web") {
+      return;
+    }
+
     // 處理冷啟動：檢查 App 是否由通知啟動
     const checkInitialNotification = async () => {
       const response = await Notifications.getLastNotificationResponseAsync();

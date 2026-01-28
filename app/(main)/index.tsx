@@ -185,20 +185,10 @@ export default function HomeScreen() {
   // 檢查教學是否已完成
   const isTutorialCompleted = !!user?.vocabulary_tutorial_completed_at;
 
-  // 決定主要按鈕的動作（優先順序：程度分析 > 教學 > 複習 > 練習 > 學習）
+  // 決定主要按鈕的動作（優先順序：程度分析 > 複習 > 練習 > 學習）
   const getNextAction = (): ActionType | "analysis" => {
     if (!stats) return null;
     if (stats.current_level === null) return "analysis";
-    if (!isTutorialCompleted) return "tutorial";
-    if (stats.can_review) return "review";
-    if (stats.can_practice) return "practice";
-    if (stats.can_learn) return "learn";
-    return null;
-  };
-
-  // 取得次要動作（教學為主要時的正常流程）
-  const getSecondaryAction = (): ActionType | null => {
-    if (!stats) return null;
     if (stats.can_review) return "review";
     if (stats.can_practice) return "practice";
     if (stats.can_learn) return "learn";
@@ -267,10 +257,6 @@ export default function HomeScreen() {
 
   const handleStartAction = () => {
     navigateToAction(getNextAction());
-  };
-
-  const handleSecondaryAction = () => {
-    navigateToAction(getSecondaryAction());
   };
 
   const handleResetCooldown = async () => {
@@ -473,16 +459,16 @@ export default function HomeScreen() {
             </Text>
           )}
 
-          {/* 次要按鈕 - 當教學為主要時顯示正常流程 */}
-          {nextAction === "tutorial" && getSecondaryAction() && (
+          {/* 次要按鈕 - 程度分析完成且教學未完成時顯示 */}
+          {stats?.current_level !== null && !isTutorialCompleted && (
             <TouchableOpacity
               style={styles.secondaryActionButton}
-              onPress={handleSecondaryAction}
+              onPress={() => navigateToAction("tutorial")}
               activeOpacity={0.8}
             >
-              {getActionIcon(getSecondaryAction(), true)}
+              {getActionIcon("tutorial", true)}
               <Text style={styles.secondaryActionButtonText}>
-                {getActionLabel(getSecondaryAction())}
+                {getActionLabel("tutorial")}
               </Text>
             </TouchableOpacity>
           )}
