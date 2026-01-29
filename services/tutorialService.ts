@@ -1,26 +1,28 @@
 import { api } from "./api";
 import type {
-  TutorialSessionResponse,
-  TutorialCompleteResponse,
+  TutorialItemType,
+  TutorialStatusResponse,
+  TutorialItemCompleteResponse,
 } from "../types/api";
 
 export const tutorialService = {
   /**
-   * 取得教學 Session
+   * 取得教學狀態（所有項目完成狀態 + 練習資料）
    */
-  async getSession(): Promise<TutorialSessionResponse> {
-    const response = await api.get<TutorialSessionResponse>(
-      "/api/tutorial/vocabulary"
+  async getStatus(): Promise<TutorialStatusResponse> {
+    const response = await api.get<TutorialStatusResponse>(
+      "/api/tutorial/status"
     );
     return response.data;
   },
 
   /**
-   * 完成教學
+   * 完成單一教學項目
    */
-  async complete(): Promise<TutorialCompleteResponse> {
-    const response = await api.post<TutorialCompleteResponse>(
-      "/api/tutorial/vocabulary/complete"
+  async completeItem(type: TutorialItemType): Promise<TutorialItemCompleteResponse> {
+    const response = await api.post<TutorialItemCompleteResponse>(
+      "/api/tutorial/complete",
+      { type }
     );
     return response.data;
   },

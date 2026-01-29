@@ -1,12 +1,22 @@
+import { useState, useEffect } from "react";
 import { Redirect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../contexts/AuthContext";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { STORAGE_KEYS } from "../services/api";
 import { colors } from "../lib/tw";
 
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
-  if (isLoading) {
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETED).then((value: string | null) => {
+      setOnboardingCompleted(value === "true");
+    });
+  }, []);
+
+  if (isLoading || onboardingCompleted === null) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -16,6 +26,10 @@ export default function Index() {
 
   if (isAuthenticated) {
     return <Redirect href="/(main)" />;
+  }
+
+  if (!onboardingCompleted) {
+    return <Redirect href="/(auth)/onboarding" />;
   }
 
   return <Redirect href="/(auth)/login" />;

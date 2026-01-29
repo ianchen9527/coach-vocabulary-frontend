@@ -27,6 +27,8 @@ export const STORAGE_KEYS = {
   COACH_MARK_PRACTICE_LISTENING: "coachMarkPracticeListeningSeen",
   COACH_MARK_PRACTICE_SPEAKING: "coachMarkPracticeSpeakingSeen",
   COACH_MARK_REVIEW: "coachMarkReviewSeen",
+  // Onboarding
+  ONBOARDING_COMPLETED: "onboardingCompleted",
   // Tracking
   DEVICE_ID: "trackingDeviceId",
   SESSION_ID: "trackingSessionId",

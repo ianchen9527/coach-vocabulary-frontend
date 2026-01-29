@@ -17,7 +17,7 @@ import { homeService } from "../../services/homeService";
 import { adminService } from "../../services/adminService";
 import { handleApiError } from "../../services/api";
 import { trackingService } from "../../services/trackingService";
-import type { StatsResponse } from "../../types/api";
+import type { StatsResponse, TutorialItemType } from "../../types/api";
 import {
   BookOpen,
   Dumbbell,
@@ -185,7 +185,12 @@ export default function HomeScreen() {
   };
 
   // 檢查教學是否已完成
-  const isTutorialCompleted = !!user?.vocabulary_tutorial_completed_at;
+  const TUTORIAL_ITEM_TYPES: TutorialItemType[] = [
+    "learn", "reading_lv1", "reading_lv2", "listening_lv1", "speaking_lv1", "speaking_lv2",
+  ];
+  const isTutorialCompleted = user?.tutorial_completion
+    ? TUTORIAL_ITEM_TYPES.every((t) => user.tutorial_completion![t])
+    : !!user?.vocabulary_tutorial_completed_at;
 
   // 決定主要按鈕的動作（優先順序：程度分析 > 複習 > 練習 > 學習）
   const getNextAction = (): ActionType | "analysis" => {
