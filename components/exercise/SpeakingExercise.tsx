@@ -5,7 +5,8 @@ import { CountdownText } from "../ui/CountdownText";
 import { SpeakingResult } from "./SpeakingResult";
 import { exerciseCommonStyles as styles } from "../../styles/exerciseStyles";
 import { colors } from "../../lib/tw";
-import type { ExerciseType } from "../../types/api";
+import { NextReviewTag } from "./NextReviewTag";
+import type { ExerciseType, NextReviewSchema } from "../../types/api";
 import type { ExercisePhase } from "../../hooks/useExerciseFlow";
 
 export interface SpeakingExerciseProps {
@@ -41,6 +42,8 @@ export interface SpeakingExerciseProps {
   micRef?: RefObject<View | null>;
   /** Coach mark 用：倒數計時 ref */
   countdownRef?: RefObject<View | null>;
+  /** 下次複習資訊（後端提供） */
+  nextReview?: NextReviewSchema;
 }
 
 /**
@@ -67,6 +70,7 @@ export function SpeakingExercise({
   translationRef,
   micRef,
   countdownRef,
+  nextReview,
 }: SpeakingExerciseProps) {
   const showImage = exerciseType === "speaking_lv1" && imageUrl;
 
@@ -165,12 +169,20 @@ export function SpeakingExercise({
 
       {/* Result phase */}
       {phase === "result" && (
-        <SpeakingResult
-          isCorrect={isCorrect}
-          recognizedText={recognizedText}
-          correctAnswer={word}
-          isVerifying={false}
-        />
+        <>
+          {nextReview && (
+            <NextReviewTag
+              nextReview={nextReview}
+              isCorrect={isCorrect}
+            />
+          )}
+          <SpeakingResult
+            isCorrect={isCorrect}
+            recognizedText={recognizedText}
+            correctAnswer={word}
+            isVerifying={false}
+          />
+        </>
       )}
     </View>
   );

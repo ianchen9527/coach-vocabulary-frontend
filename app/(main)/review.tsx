@@ -438,6 +438,7 @@ export default function ReviewScreen() {
           selectedIndex={exerciseFlow.selectedIndex}
           onSelect={exerciseFlow.select}
           exerciseType={currentExercise.type}
+          nextReview={currentExercise.next_review}
         />
       );
     }
@@ -453,6 +454,7 @@ export default function ReviewScreen() {
           onSelect={exerciseFlow.select}
           exerciseType={currentExercise.type}
           isSpeaking={isSpeaking}
+          nextReview={currentExercise.next_review}
         />
       );
     }
@@ -473,6 +475,7 @@ export default function ReviewScreen() {
           isCorrect={speakingExercise.isCorrect}
           onStopRecording={speakingExercise.handleStopRecording}
           getAssetUrl={getAssetUrl}
+          nextReview={currentExercise.next_review}
         />
       );
     }

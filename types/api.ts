@@ -88,11 +88,18 @@ export interface WordDetailSchema {
   audio_url: string | null;
 }
 
+export interface NextReviewSchema {
+  correct_wait_seconds: number;
+  correct_is_mastered: boolean;
+  incorrect_wait_seconds: number;
+}
+
 export interface ExerciseSchema {
   word_id: string;
   type: ExerciseType;
   options: OptionSchema[];
   correct_index: number | null;
+  next_review?: NextReviewSchema;
 }
 
 export interface ExerciseWithWordSchema extends ExerciseSchema {

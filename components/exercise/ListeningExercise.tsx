@@ -5,7 +5,8 @@ import { CountdownText } from "../ui/CountdownText";
 import { ExerciseOptions } from "./ExerciseOptions";
 import { exerciseCommonStyles as styles } from "../../styles/exerciseStyles";
 import { colors } from "../../lib/tw";
-import type { OptionSchema, ExerciseType } from "../../types/api";
+import { NextReviewTag } from "./NextReviewTag";
+import type { OptionSchema, ExerciseType, NextReviewSchema } from "../../types/api";
 import type { ExercisePhase } from "../../hooks/useExerciseFlow";
 
 export interface ListeningExerciseProps {
@@ -31,6 +32,8 @@ export interface ListeningExerciseProps {
   optionsRef?: RefObject<View | null>;
   /** Coach mark 用：倒數計時 ref */
   countdownRef?: RefObject<View | null>;
+  /** 下次複習資訊（後端提供） */
+  nextReview?: NextReviewSchema;
 }
 
 /**
@@ -51,6 +54,7 @@ export function ListeningExercise({
   speakerRef,
   optionsRef,
   countdownRef,
+  nextReview,
 }: ListeningExerciseProps) {
   const isGridLayout = exerciseType === "listening_lv1";
 
@@ -104,6 +108,12 @@ export function ListeningExercise({
         <>
           {selectedIndex === -1 && (
             <Text style={styles.timeoutText}>時間到！</Text>
+          )}
+          {nextReview && (
+            <NextReviewTag
+              nextReview={nextReview}
+              isCorrect={selectedIndex !== null && selectedIndex !== -1 && selectedIndex === correctIndex}
+            />
           )}
           <ExerciseOptions
             options={options}

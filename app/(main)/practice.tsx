@@ -461,6 +461,7 @@ export default function PracticeScreen() {
           wordRef={wordRef}
           optionsRef={optionsRef}
           countdownRef={countdownRef}
+          nextReview={currentExercise.next_review}
         />
       );
     }
@@ -479,6 +480,7 @@ export default function PracticeScreen() {
           speakerRef={speakerRef}
           optionsRef={optionsRef}
           countdownRef={countdownRef}
+          nextReview={currentExercise.next_review}
         />
       );
     }
@@ -502,6 +504,7 @@ export default function PracticeScreen() {
           translationRef={translationRef}
           micRef={micRef}
           countdownRef={countdownRef}
+          nextReview={currentExercise.next_review}
         />
       );
     }

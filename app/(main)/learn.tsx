@@ -426,6 +426,7 @@ export default function LearnScreen() {
             wordRef={exerciseWordRef}
             optionsRef={exerciseOptionsRef}
             countdownRef={exerciseCountdownRef}
+            nextReview={currentExercise.next_review}
           />
         )}
       </View>
