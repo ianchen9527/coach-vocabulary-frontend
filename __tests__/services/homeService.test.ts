@@ -18,6 +18,7 @@ describe('homeService', () => {
       const mockResponse = {
         data: {
           today_learned: 10,
+          today_completed: 7,
           available_practice: 5,
           available_review: 3,
           upcoming_24h: 8,
@@ -50,6 +51,7 @@ describe('homeService', () => {
       const mockResponse = {
         data: {
           today_learned: 0,
+          today_completed: 0,
           available_practice: 0,
           available_review: 0,
           upcoming_24h: 0,

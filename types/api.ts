@@ -38,6 +38,7 @@ export interface DeleteAccountResponse {
 // === Home ===
 export interface StatsResponse {
   today_learned: number;
+  today_completed: number;
   available_practice: number;
   available_review: number;
   upcoming_24h: number;

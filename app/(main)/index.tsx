@@ -44,6 +44,8 @@ import { BottomSheet, BottomSheetItem } from "../../components/ui/BottomSheet";
 import { DeleteAccountModal } from "../../components/ui/DeleteAccountModal";
 import { refreshSignal } from "../../utils/refreshSignal";
 
+const DAILY_LEARN_LIMIT = 50;
+
 type ActionType = "review" | "practice" | "learn" | "tutorial" | null;
 type BottomSheetStage = "main" | "account";
 
@@ -397,21 +399,24 @@ export default function HomeScreen() {
           {/* Stats Grid */}
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>今日學習</Text>
+              <Text style={styles.statLabel}>我的等級</Text>
               <Text style={styles.statValueForeground}>
-                {stats?.today_learned || 0}
+                {stats?.current_level && stats?.current_category
+                  ? `${stats.current_level.order}.${stats.current_category.order}`
+                  : "—"}
               </Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>可練習</Text>
+              <Text style={styles.statLabel}>今日單字</Text>
               <Text style={styles.statValuePrimary}>
-                {stats?.available_practice || 0}
+                {stats?.today_learned || 0}
+                <Text style={styles.statValueGoal}> / {DAILY_LEARN_LIMIT}</Text>
               </Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>待複習</Text>
-              <Text style={styles.statValueWarning}>
-                {stats?.available_review || 0}
+              <Text style={styles.statLabel}>今日練習次數</Text>
+              <Text style={styles.statValueAccent}>
+                {stats?.today_completed || 0}
               </Text>
             </View>
           </View>
@@ -674,15 +679,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: colors.primary,
   },
-  statValueWarning: {
-    fontSize: 30,
-    fontWeight: "bold",
-    color: colors.warning,
-  },
-  statValueMuted: {
-    fontSize: 30,
-    fontWeight: "bold",
+  statValueGoal: {
+    fontSize: 16,
+    fontWeight: "normal",
     color: colors.mutedForeground,
+  },
+  statValueAccent: {
+    fontSize: 30,
+    fontWeight: "bold",
+    color: colors.accent,
   },
   nextAvailableContainer: {
     flexDirection: "row",
