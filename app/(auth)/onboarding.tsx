@@ -33,7 +33,7 @@ const slides: Slide[] = [
   {
     icon: <CalendarClock size={ICON_SIZE} color={colors.primary} />,
     title: "科學化複習排程",
-    body: "根據遺忘曲線，Attain會在最佳時機安排複習，並搭配不同的練習方式——閱讀、聽力、口說——全方位強化記憶。",
+    body: "根據遺忘曲線，Attain會在最佳時機安排複習，並搭配不同的練習方式: 閱讀、聽力、口說，全方位強化學習。",
   },
 ];
 
